@@ -1,6 +1,8 @@
 use std::io::{self, Write};
 use std::{fmt::Display, path::PathBuf};
 
+use scanner::Scanner;
+
 mod scanner;
 
 struct ErrorReport {
@@ -31,8 +33,8 @@ impl<'a> Command<'a> {
             Self::Exit => {
                 std::process::exit(0);
             }
-            _ => {
-                println!("{}", self);
+            Self::Run(v) => {
+                Scanner::new(v).scan();
             }
         }
     }

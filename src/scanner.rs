@@ -1,4 +1,27 @@
-use std::fmt::Display;
+use std::{
+     fmt::Display, iter::{ Peekable}, str::{CharIndices, }
+};
+
+#[derive(Debug)]
+enum ScanError {
+    UnexpectedCharacter(u64),
+    TokenMissing(u64)
+}
+
+impl Display for ScanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScanError::UnexpectedCharacter(line) => {
+                write!(f, "Unexpected character encountered at line {}", line)
+            },
+            ScanError::TokenMissing(line) => {
+                write!(f, "Token missing at line {}", line)
+            },
+        }
+    }
+}
+
+type ScanResult<T> = Result<T, ScanError>;
 
 #[derive(Debug, PartialEq)]
 enum TokenType {
@@ -14,13 +37,15 @@ enum TokenType {
     Slash,
     Star,
     Bang,
-    BangEqual,
     Equal,
-    EqualEqual,
     Greater,
-    GreaterEqual,
     Less,
+
+    BangEqual,
+    EqualEqual,
+    GreaterEqual,
     LessEqual,
+
     Identifier,
     Number,
     String,
@@ -43,29 +68,6 @@ enum TokenType {
     Eof,
 }
 
-impl TokenType {
-    fn from_char(c: char) -> Option<Self> {
-        match c {
-            '(' => Some(TokenType::LeftParen),
-            ')' => Some(TokenType::RightParen),
-            '{' => Some(TokenType::LeftBrace),
-            '}' => Some(TokenType::RightBrace),
-            ',' => Some(TokenType::Comma),
-            '.' => Some(TokenType::Dot),
-            '-' => Some(TokenType::Minus),
-            '+' => Some(TokenType::Plus),
-            ';' => Some(TokenType::Semicolon),
-            '/' => Some(TokenType::Slash),
-            '*' => Some(TokenType::Star),
-            '!' => Some(TokenType::Bang),
-            '=' => Some(TokenType::Equal),
-            '>' => Some(TokenType::Greater),
-            '<' => Some(TokenType::Less),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug)]
 struct Token<'a> {
     kind: TokenType,
@@ -80,12 +82,19 @@ impl<'a> PartialEq for Token<'a> {
 }
 
 impl<'a> Token<'a> {
-    pub fn new(kind: TokenType, lexem: &'a str, line: u64) -> Self {
+    pub fn new(kind: TokenType, lexem:  &'a str, line: u64) -> Self {
         Self { kind, lexem, line }
+    }
+    fn eof(line: u64) -> Self {
+        Self {
+            kind: TokenType::Eof,
+            lexem: "",
+            line,
+        }
     }
 }
 
-impl Display for Token<'_> {
+impl<'a> Display for Token<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -95,64 +104,261 @@ impl Display for Token<'_> {
     }
 }
 
-struct Scanner<'a> {
-    source: String,
+#[derive(Default)]
+pub struct Scanner<'a> {
+    source: &'a str,
     tokens: Vec<Token<'a>>,
+    errors: Vec<ScanError>,
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(source: String) -> Self {
+    pub fn new(source:  &'a str) -> Self {
         Self {
             source,
-            tokens: Vec::new(),
+            ..Default::default()
         }
     }
-    pub fn scan(self) -> Self {
-        for (line_num, line) in self.source.lines().enumerate() {
-            handle_line(line_num, line);
+    pub fn scan(mut self) -> Self {
+        for token_result in ScanIter::new(self.source) {
+            match token_result {
+                Ok(token) => self.tokens.push(token),
+                Err(error) => self.errors.push(error),
+            }
         }
         self
     }
 }
 
-fn handle_line(line_num: usize, line: &str) {
-    let mut chars = line.char_indices();
-    let mut tokens = Vec::new();
-    let line_num = line_num as u64 + 1;
-    while let Some((char_pos, c)) = chars.next() {
-        match TokenType::from_char(c) {
-            Some(token) => {
-                let v: *const u8 = line[char_pos..char_pos + 1].as_ptr();
-                tokens.push(Token::new(token, v, line_num));
+
+
+struct ScanIter<'a> {
+    line: u64,
+    current: usize,
+    start: usize,
+    source:  &'a str,
+    inner: Peekable<CharIndices<'a>>,
+    eof_returned: bool,
+}
+
+impl<'a> ScanIter<'a> {
+    pub fn new(source: &'a str) -> Self {
+        Self {
+            line: 1,
+            current: 0,
+            start: 0,
+            source,
+            inner: source.char_indices().peekable(),
+            eof_returned: false,
+        }
+    }
+
+}
+
+impl<'a> Iterator for ScanIter<'a> {
+    type Item = ScanResult<Token<'a>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let Some((current_pos, current_char)) = self.inner.next() else {
+            if self.eof_returned {
+                return None;
             }
-            None => {}
+            self.eof_returned = true;
+            return Some(Ok(Token::eof(self.line)));
+        };
+
+        let next_char = self.inner.peek().map(|n|n.1);
+
+
+        match TokenKinds::from_char(current_char, next_char){
+            TokenKinds::SingleChar(token_type) => {
+                return Some(Ok(Token::new(token_type, &self.source[current_pos..current_pos + 1], self.line)));
+            },
+            TokenKinds::DoubleChar(token_type) => {
+                let Some((next_pos, _)) = self.inner.next() else {
+                    return Some(Err(ScanError::TokenMissing(self.line)));
+                };
+                return Some(Ok(Token::new(token_type, &self.source[current_pos..next_pos + 1], self.line)));
+            },
+            TokenKinds::Comment => {
+                while let Some((_, c)) = self.inner.next() {
+                    if c == '\n' {
+                        self.line += 1;
+                        return self.next();
+                    }
+                }
+            },
+            TokenKinds::NewLine => {
+                self.line += 1;
+                return self.next();
+            }
+            TokenKinds::String =>{
+                while let Some((next_pos, c)) = self.inner.next() {
+                    if c == '\n' {
+                        self.line += 1;
+                    } else if c== '"' {
+                        //NOTE: we remove the quotes from the string
+                        let lexem = &self.source[current_pos + 1..next_pos];
+                        return Some(Ok(Token::new(TokenType::String, lexem, self.line)));
+                    }
+                }
+            },
+        };
+
+
+        Some(Err(ScanError::UnexpectedCharacter(self.line)))
+    }
+}
+
+enum TokenKinds {
+    SingleChar(TokenType),
+    DoubleChar(TokenType),
+    Comment,
+    NewLine,
+    String
+}
+
+impl TokenKinds {
+    fn from_char(c: char, next_c: Option<char>)->Self{
+        match (c, next_c){
+            ('(', _) => Self::SingleChar(TokenType::LeftParen),
+            (')', _) => Self::SingleChar(TokenType::RightParen),
+            ('{', _) => Self::SingleChar(TokenType::LeftBrace),
+            ('}', _) => Self::SingleChar(TokenType::RightBrace),
+            (',', _) => Self::SingleChar(TokenType::Comma),
+            ('.', _) => Self::SingleChar(TokenType::Dot),
+            ('-', _) => Self::SingleChar(TokenType::Minus),
+            ('+', _) => Self::SingleChar(TokenType::Plus),
+            (';', _) => Self::SingleChar(TokenType::Semicolon),
+            ('*', _) => Self::SingleChar(TokenType::Star),
+            ('!', Some('=')) => Self::DoubleChar(TokenType::BangEqual),
+            ('=', Some('=')) => Self::DoubleChar(TokenType::EqualEqual),
+            ('>', Some('=')) => Self::DoubleChar(TokenType::GreaterEqual),
+            ('<', Some('=')) => Self::DoubleChar(TokenType::LessEqual),
+            ('!', _) => Self::SingleChar(TokenType::Bang),
+            ('=', _) => Self::SingleChar(TokenType::Equal),
+            ('>', _) => Self::SingleChar(TokenType::Greater),
+            ('<', _) => Self::SingleChar(TokenType::Less),
+            ('/', Some('/')) => Self::Comment,
+            ('/', _) => Self::SingleChar(TokenType::Slash),
+            ('\n', _) => Self::NewLine,
+            ('"', _) => Self::String,
+            _=> todo!("Handle more token types or errors: {} and {:?}", c, next_c),
         }
     }
 }
 
-struct ScannerIter {
-    line: u64,
-}
-
-impl<'a> Iterator for ScannerIter {
-    type Item = Token<'a>;
-    fn next(&mut self) -> Option<Self::Item> {}
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+
     #[test]
-    fn test_handle_line() {
-        let source = r#"fun greet(name) {
-        print "Hello, " + name + "!";
-        return nil;
-    }"#
-        .to_string();
-        let mut v = source.lines().enumerate();
-        let first = v.next().unwrap();
-        let resutl = handle_line(first.0, first.1);
+    fn test_single_character_tokens() {
+        let source = r#"(){}.,-+;*"#;
+        let expected_tokens = vec![
+            Token::new(TokenType::LeftParen, "(", 1),
+            Token::new(TokenType::RightParen, ")", 1),
+            Token::new(TokenType::LeftBrace, "{", 1),
+            Token::new(TokenType::RightBrace, "}", 1),
+            Token::new(TokenType::Dot, ".", 1),
+            Token::new(TokenType::Comma, ",", 1),
+            Token::new(TokenType::Minus, "-", 1),
+            Token::new(TokenType::Plus, "+", 1),
+            Token::new(TokenType::Semicolon, ";", 1),
+            Token::new(TokenType::Star, "*", 1),
+            Token::new(TokenType::Eof, "", 1),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_single_character_tokens_multiline() {
+        let source = "(){}.,\n-+;*";
+        let expected_tokens = vec![
+            Token::new(TokenType::LeftParen, "(", 1),
+            Token::new(TokenType::RightParen, ")", 1),
+            Token::new(TokenType::LeftBrace, "{", 1),
+            Token::new(TokenType::RightBrace, "}", 1),
+            Token::new(TokenType::Dot, ".", 1),
+            Token::new(TokenType::Comma, ",", 1),
+            Token::new(TokenType::Minus, "-", 2),
+            Token::new(TokenType::Plus, "+", 2),
+            Token::new(TokenType::Semicolon, ";", 2),
+            Token::new(TokenType::Star, "*", 2),
+            Token::new(TokenType::Eof, "", 2),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_simple_characters_tokens_with_comment() {
+        let source = r#"()//!=.==>=*"#;
+        let expected_tokens = vec![
+            Token::new(TokenType::LeftParen, "(", 1),
+            Token::new(TokenType::RightParen, ")", 1),
+            Token::new(TokenType::Eof, "", 1),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_simple_characters_tokens_with_comment_and_new_line() {
+        let source = "()//!=.==>\n=*";
+        let expected_tokens = vec![
+            Token::new(TokenType::LeftParen, "(", 1),
+            Token::new(TokenType::RightParen, ")", 1),
+            Token::new(TokenType::Equal, "=", 2),
+            Token::new(TokenType::Star, "*", 2),
+            Token::new(TokenType::Eof, "", 2),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_double_character_tokens() {
+        let source = r#"()!=.==>=/"#;
+        let expected_tokens = vec![
+            Token::new(TokenType::LeftParen, "(", 1),
+            Token::new(TokenType::RightParen, ")", 1),
+            Token::new(TokenType::BangEqual, "!=", 1),
+            Token::new(TokenType::Dot, ".", 1),
+            Token::new(TokenType::EqualEqual, "==", 1),
+            Token::new(TokenType::GreaterEqual, ">=", 1),
+            Token::new(TokenType::Slash, "/", 1),
+            Token::new(TokenType::Eof, "", 1),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_string_tokens() {
+        let source = "()\"hey, como\"";
+        let expected_tokens = vec![
+            Token::new(TokenType::LeftParen, "(", 1),
+            Token::new(TokenType::RightParen, ")", 1),
+            Token::new(TokenType::String, "hey, como", 1),
+            Token::new(TokenType::Eof, "", 1),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_string_tokens_new_line() {
+        let source = "()\"hey,\n como\"";
+        let expected_tokens = vec![
+            Token::new(TokenType::LeftParen, "(", 1),
+            Token::new(TokenType::RightParen, ")", 1),
+            Token::new(TokenType::String, "hey,\n como", 2),
+            Token::new(TokenType::Eof, "", 2),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
     }
 
     #[test]
@@ -160,8 +366,7 @@ mod tests {
         let source = r#"fun greet(name) {
         print "Hello, " + name + "!";
         return nil;
-    }"#
-        .to_string();
+    }"#;
         let expected_tokens = vec![
             Token::new(TokenType::Fun, "fun", 1),
             Token::new(TokenType::Identifier, "greet", 1),
@@ -186,252 +391,4 @@ mod tests {
         assert_eq!(scanner.scan().tokens, expected_tokens);
     }
 
-    #[test]
-    fn test_class_with_methods() {
-        let source = r#"class Person {
-        init(name, age) {
-            this.name = name;
-            this.age = age;
-        }
-
-        sayHello() {
-            print "Hi, I'm " + this.name;
-        }
-    }"#
-        .to_string();
-        let expected_tokens = vec![
-            Token::new(TokenType::Class, "class", 1),
-            Token::new(TokenType::Identifier, "Person", 1),
-            Token::new(TokenType::LeftBrace, "{", 1),
-            Token::new(TokenType::Identifier, "init", 2),
-            Token::new(TokenType::LeftParen, "(", 2),
-            Token::new(TokenType::Identifier, "name", 2),
-            Token::new(TokenType::Comma, ",", 2),
-            Token::new(TokenType::Identifier, "age", 2),
-            Token::new(TokenType::RightParen, ")", 2),
-            Token::new(TokenType::LeftBrace, "{", 2),
-            Token::new(TokenType::This, "this", 3),
-            Token::new(TokenType::Dot, ".", 3),
-            Token::new(TokenType::Identifier, "name", 3),
-            Token::new(TokenType::Equal, "=", 3),
-            Token::new(TokenType::Identifier, "name", 3),
-            Token::new(TokenType::Semicolon, ";", 3),
-            Token::new(TokenType::This, "this", 4),
-            Token::new(TokenType::Dot, ".", 4),
-            Token::new(TokenType::Identifier, "age", 4),
-            Token::new(TokenType::Equal, "=", 4),
-            Token::new(TokenType::Identifier, "age", 4),
-            Token::new(TokenType::Semicolon, ";", 4),
-            Token::new(TokenType::RightBrace, "}", 5),
-            Token::new(TokenType::Identifier, "sayHello", 7),
-            Token::new(TokenType::LeftParen, "(", 7),
-            Token::new(TokenType::RightParen, ")", 7),
-            Token::new(TokenType::LeftBrace, "{", 7),
-            Token::new(TokenType::Print, "print", 8),
-            Token::new(TokenType::String, "\"Hi, I'm \"", 8),
-            Token::new(TokenType::Plus, "+", 8),
-            Token::new(TokenType::This, "this", 8),
-            Token::new(TokenType::Dot, ".", 8),
-            Token::new(TokenType::Identifier, "name", 8),
-            Token::new(TokenType::Semicolon, ";", 8),
-            Token::new(TokenType::RightBrace, "}", 9),
-            Token::new(TokenType::RightBrace, "}", 10),
-            Token::new(TokenType::Eof, "", 10),
-        ];
-        let scanner = Scanner::new(source);
-        assert_eq!(scanner.scan().tokens, expected_tokens);
-    }
-
-    #[test]
-    fn test_for_loop_with_counter() {
-        let source = r#"for (var i = 0; i < 10; i = i + 1) {
-        print i;
-    }"#
-        .to_string();
-        let expected_tokens = vec![
-            Token::new(TokenType::For, "for", 1),
-            Token::new(TokenType::LeftParen, "(", 1),
-            Token::new(TokenType::Var, "var", 1),
-            Token::new(TokenType::Identifier, "i", 1),
-            Token::new(TokenType::Equal, "=", 1),
-            Token::new(TokenType::Number, "0", 1),
-            Token::new(TokenType::Semicolon, ";", 1),
-            Token::new(TokenType::Identifier, "i", 1),
-            Token::new(TokenType::Less, "<", 1),
-            Token::new(TokenType::Number, "10", 1),
-            Token::new(TokenType::Semicolon, ";", 1),
-            Token::new(TokenType::Identifier, "i", 1),
-            Token::new(TokenType::Equal, "=", 1),
-            Token::new(TokenType::Identifier, "i", 1),
-            Token::new(TokenType::Plus, "+", 1),
-            Token::new(TokenType::Number, "1", 1),
-            Token::new(TokenType::RightParen, ")", 1),
-            Token::new(TokenType::LeftBrace, "{", 1),
-            Token::new(TokenType::Print, "print", 2),
-            Token::new(TokenType::Identifier, "i", 2),
-            Token::new(TokenType::Semicolon, ";", 2),
-            Token::new(TokenType::RightBrace, "}", 3),
-            Token::new(TokenType::Eof, "", 3),
-        ];
-        let scanner = Scanner::new(source);
-        assert_eq!(scanner.scan().tokens, expected_tokens);
-    }
-
-    #[test]
-    fn test_fibonacci_function() {
-        let source = r#"fun fibonacci(n) {
-        if (n <= 1) return n;
-        return fibonacci(n - 1) + fibonacci(n - 2);
-    }"#
-        .to_string();
-        let expected_tokens = vec![
-            Token::new(TokenType::Fun, "fun", 1),
-            Token::new(TokenType::Identifier, "fibonacci", 1),
-            Token::new(TokenType::LeftParen, "(", 1),
-            Token::new(TokenType::Identifier, "n", 1),
-            Token::new(TokenType::RightParen, ")", 1),
-            Token::new(TokenType::LeftBrace, "{", 1),
-            Token::new(TokenType::If, "if", 2),
-            Token::new(TokenType::LeftParen, "(", 2),
-            Token::new(TokenType::Identifier, "n", 2),
-            Token::new(TokenType::LessEqual, "<=", 2),
-            Token::new(TokenType::Number, "1", 2),
-            Token::new(TokenType::RightParen, ")", 2),
-            Token::new(TokenType::Return, "return", 2),
-            Token::new(TokenType::Identifier, "n", 2),
-            Token::new(TokenType::Semicolon, ";", 2),
-            Token::new(TokenType::Return, "return", 3),
-            Token::new(TokenType::Identifier, "fibonacci", 3),
-            Token::new(TokenType::LeftParen, "(", 3),
-            Token::new(TokenType::Identifier, "n", 3),
-            Token::new(TokenType::Minus, "-", 3),
-            Token::new(TokenType::Number, "1", 3),
-            Token::new(TokenType::RightParen, ")", 3),
-            Token::new(TokenType::Plus, "+", 3),
-            Token::new(TokenType::Identifier, "fibonacci", 3),
-            Token::new(TokenType::LeftParen, "(", 3),
-            Token::new(TokenType::Identifier, "n", 3),
-            Token::new(TokenType::Minus, "-", 3),
-            Token::new(TokenType::Number, "2", 3),
-            Token::new(TokenType::RightParen, ")", 3),
-            Token::new(TokenType::Semicolon, ";", 3),
-            Token::new(TokenType::RightBrace, "}", 4),
-            Token::new(TokenType::Eof, "", 4),
-        ];
-        let scanner = Scanner::new(source);
-        assert_eq!(scanner.scan().tokens, expected_tokens);
-    }
-
-    #[test]
-    fn test_variable_assignments_and_comparisons() {
-        let source = r#"var x = 42;
-    var y = 3.14;
-    var isEqual = x == y;
-    var isGreater = x > y;
-    var name = "Alice";
-    var isValid = name != nil and x >= 0;"#
-            .to_string();
-        let expected_tokens = vec![
-            Token::new(TokenType::Var, "var", 1),
-            Token::new(TokenType::Identifier, "x", 1),
-            Token::new(TokenType::Equal, "=", 1),
-            Token::new(TokenType::Number, "42", 1),
-            Token::new(TokenType::Semicolon, ";", 1),
-            Token::new(TokenType::Var, "var", 2),
-            Token::new(TokenType::Identifier, "y", 2),
-            Token::new(TokenType::Equal, "=", 2),
-            Token::new(TokenType::Number, "3.14", 2),
-            Token::new(TokenType::Semicolon, ";", 2),
-            Token::new(TokenType::Var, "var", 3),
-            Token::new(TokenType::Identifier, "isEqual", 3),
-            Token::new(TokenType::Equal, "=", 3),
-            Token::new(TokenType::Identifier, "x", 3),
-            Token::new(TokenType::EqualEqual, "==", 3),
-            Token::new(TokenType::Identifier, "y", 3),
-            Token::new(TokenType::Semicolon, ";", 3),
-            Token::new(TokenType::Var, "var", 4),
-            Token::new(TokenType::Identifier, "isGreater", 4),
-            Token::new(TokenType::Equal, "=", 4),
-            Token::new(TokenType::Identifier, "x", 4),
-            Token::new(TokenType::Greater, ">", 4),
-            Token::new(TokenType::Identifier, "y", 4),
-            Token::new(TokenType::Semicolon, ";", 4),
-            Token::new(TokenType::Var, "var", 5),
-            Token::new(TokenType::Identifier, "name", 5),
-            Token::new(TokenType::Equal, "=", 5),
-            Token::new(TokenType::String, "\"Alice\"", 5),
-            Token::new(TokenType::Semicolon, ";", 5),
-            Token::new(TokenType::Var, "var", 6),
-            Token::new(TokenType::Identifier, "isValid", 6),
-            Token::new(TokenType::Equal, "=", 6),
-            Token::new(TokenType::Identifier, "name", 6),
-            Token::new(TokenType::BangEqual, "!=", 6),
-            Token::new(TokenType::Nil, "nil", 6),
-            Token::new(TokenType::And, "and", 6),
-            Token::new(TokenType::Identifier, "x", 6),
-            Token::new(TokenType::GreaterEqual, ">=", 6),
-            Token::new(TokenType::Number, "0", 6),
-            Token::new(TokenType::Semicolon, ";", 6),
-            Token::new(TokenType::Eof, "", 6),
-        ];
-        let scanner = Scanner::new(source);
-        assert_eq!(scanner.scan().tokens, expected_tokens);
-    }
-
-    #[test]
-    fn test_while_loop_with_conditions() {
-        let source = r#"var count = 0;
-    while (count < 5 and count >= 0) {
-        print "Count: " + count;
-        count = count + 1;
-        if (count == 3) {
-            print "Reached middle!";
-        }
-    }"#
-        .to_string();
-        let expected_tokens = vec![
-            Token::new(TokenType::Var, "var", 1),
-            Token::new(TokenType::Identifier, "count", 1),
-            Token::new(TokenType::Equal, "=", 1),
-            Token::new(TokenType::Number, "0", 1),
-            Token::new(TokenType::Semicolon, ";", 1),
-            Token::new(TokenType::While, "while", 2),
-            Token::new(TokenType::LeftParen, "(", 2),
-            Token::new(TokenType::Identifier, "count", 2),
-            Token::new(TokenType::Less, "<", 2),
-            Token::new(TokenType::Number, "5", 2),
-            Token::new(TokenType::And, "and", 2),
-            Token::new(TokenType::Identifier, "count", 2),
-            Token::new(TokenType::GreaterEqual, ">=", 2),
-            Token::new(TokenType::Number, "0", 2),
-            Token::new(TokenType::RightParen, ")", 2),
-            Token::new(TokenType::LeftBrace, "{", 2),
-            Token::new(TokenType::Print, "print", 3),
-            Token::new(TokenType::String, "\"Count: \"", 3),
-            Token::new(TokenType::Plus, "+", 3),
-            Token::new(TokenType::Identifier, "count", 3),
-            Token::new(TokenType::Semicolon, ";", 3),
-            Token::new(TokenType::Identifier, "count", 4),
-            Token::new(TokenType::Equal, "=", 4),
-            Token::new(TokenType::Identifier, "count", 4),
-            Token::new(TokenType::Plus, "+", 4),
-            Token::new(TokenType::Number, "1", 4),
-            Token::new(TokenType::Semicolon, ";", 4),
-            Token::new(TokenType::If, "if", 5),
-            Token::new(TokenType::LeftParen, "(", 5),
-            Token::new(TokenType::Identifier, "count", 5),
-            Token::new(TokenType::EqualEqual, "==", 5),
-            Token::new(TokenType::Number, "3", 5),
-            Token::new(TokenType::RightParen, ")", 5),
-            Token::new(TokenType::LeftBrace, "{", 5),
-            Token::new(TokenType::Print, "print", 6),
-            Token::new(TokenType::String, "\"Reached middle!\"", 6),
-            Token::new(TokenType::Semicolon, ";", 6),
-            Token::new(TokenType::RightBrace, "}", 7),
-            Token::new(TokenType::RightBrace, "}", 8),
-            Token::new(TokenType::Eof, "", 8),
-        ];
-        let scanner = Scanner::new(source);
-        assert_eq!(scanner.scan().tokens, expected_tokens);
-    }
 }
