@@ -1,11 +1,9 @@
-use std::{
-     fmt::Display, iter::{ Peekable}, str::{CharIndices, }
-};
+use std::{fmt::Display, iter::Peekable, str::CharIndices};
 
 #[derive(Debug)]
 enum ScanError {
     UnexpectedCharacter(u64),
-    TokenMissing(u64)
+    TokenMissing(u64),
 }
 
 impl Display for ScanError {
@@ -13,10 +11,10 @@ impl Display for ScanError {
         match self {
             ScanError::UnexpectedCharacter(line) => {
                 write!(f, "Unexpected character encountered at line {}", line)
-            },
+            }
             ScanError::TokenMissing(line) => {
                 write!(f, "Token missing at line {}", line)
-            },
+            }
         }
     }
 }
@@ -82,7 +80,7 @@ impl<'a> PartialEq for Token<'a> {
 }
 
 impl<'a> Token<'a> {
-    pub fn new(kind: TokenType, lexem:  &'a str, line: u64) -> Self {
+    pub fn new(kind: TokenType, lexem: &'a str, line: u64) -> Self {
         Self { kind, lexem, line }
     }
     fn eof(line: u64) -> Self {
@@ -112,7 +110,7 @@ pub struct Scanner<'a> {
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(source:  &'a str) -> Self {
+    pub fn new(source: &'a str) -> Self {
         Self {
             source,
             ..Default::default()
@@ -129,13 +127,11 @@ impl<'a> Scanner<'a> {
     }
 }
 
-
-
 struct ScanIter<'a> {
     line: u64,
     current: usize,
     start: usize,
-    source:  &'a str,
+    source: &'a str,
     inner: Peekable<CharIndices<'a>>,
     eof_returned: bool,
 }
@@ -151,7 +147,6 @@ impl<'a> ScanIter<'a> {
             eof_returned: false,
         }
     }
-
 }
 
 impl<'a> Iterator for ScanIter<'a> {
@@ -165,44 +160,71 @@ impl<'a> Iterator for ScanIter<'a> {
             return Some(Ok(Token::eof(self.line)));
         };
 
-        let next_char = self.inner.peek().map(|n|n.1);
+        let next_char = self.inner.peek().map(|n| n.1);
+        //TODO: maybe use next_if here too
 
-
-        match TokenKinds::from_char(current_char, next_char){
+        match TokenKinds::from_char(current_char, next_char) {
             TokenKinds::SingleChar(token_type) => {
-                return Some(Ok(Token::new(token_type, &self.source[current_pos..current_pos + 1], self.line)));
-            },
+                return Some(Ok(Token::new(
+                    token_type,
+                    &self.source[current_pos..current_pos + 1],
+                    self.line,
+                )));
+            }
             TokenKinds::DoubleChar(token_type) => {
                 let Some((next_pos, _)) = self.inner.next() else {
                     return Some(Err(ScanError::TokenMissing(self.line)));
                 };
-                return Some(Ok(Token::new(token_type, &self.source[current_pos..next_pos + 1], self.line)));
-            },
+                return Some(Ok(Token::new(
+                    token_type,
+                    &self.source[current_pos..next_pos + 1],
+                    self.line,
+                )));
+            }
             TokenKinds::Comment => {
-                while let Some((_, c)) = self.inner.next() {
-                    if c == '\n' {
+                while let Some((_, next_char)) = self.inner.next() {
+                    if next_char == '\n' {
                         self.line += 1;
                         return self.next();
                     }
                 }
-            },
+            }
             TokenKinds::NewLine => {
                 self.line += 1;
                 return self.next();
             }
-            TokenKinds::String =>{
-                while let Some((next_pos, c)) = self.inner.next() {
-                    if c == '\n' {
+            TokenKinds::String => {
+                while let Some((next_pos, next_char)) = self.inner.next() {
+                    if next_char == '\n' {
                         self.line += 1;
-                    } else if c== '"' {
+                    } else if next_char == '"' {
                         //NOTE: we remove the quotes from the string
                         let lexem = &self.source[current_pos + 1..next_pos];
                         return Some(Ok(Token::new(TokenType::String, lexem, self.line)));
                     }
                 }
-            },
+                return Some(Err(ScanError::TokenMissing(self.line)));
+            }
+            TokenKinds::Number => {
+                let mut next_pos = current_pos;
+                while let Some((next_pos1, next_char)) = self
+                    .inner
+                    .next_if(|(_, c)| c.is_ascii_digit() || c.eq(&'.'))
+                {
+                    next_pos = next_pos1;
+                    if next_char == '.' {
+                        while let Some((next_pos2, c)) =
+                            self.inner.next_if(|(_, c)| c.is_ascii_digit())
+                        {
+                            next_pos = next_pos2;
+                        }
+                        break;
+                    }
+                }
+                let lexem = &self.source[current_pos..next_pos + 1];
+                return Some(Ok(Token::new(TokenType::Number, lexem, self.line)));
+            }
         };
-
 
         Some(Err(ScanError::UnexpectedCharacter(self.line)))
     }
@@ -213,12 +235,13 @@ enum TokenKinds {
     DoubleChar(TokenType),
     Comment,
     NewLine,
-    String
+    String,
+    Number,
 }
 
 impl TokenKinds {
-    fn from_char(c: char, next_c: Option<char>)->Self{
-        match (c, next_c){
+    fn from_char(c: char, next_c: Option<char>) -> Self {
+        match (c, next_c) {
             ('(', _) => Self::SingleChar(TokenType::LeftParen),
             (')', _) => Self::SingleChar(TokenType::RightParen),
             ('{', _) => Self::SingleChar(TokenType::LeftBrace),
@@ -241,16 +264,48 @@ impl TokenKinds {
             ('/', _) => Self::SingleChar(TokenType::Slash),
             ('\n', _) => Self::NewLine,
             ('"', _) => Self::String,
-            _=> todo!("Handle more token types or errors: {} and {:?}", c, next_c),
+            ('0'..='9', _) => Self::Number,
+            _ => todo!("Handle more token types or errors: {} and {:?}", c, next_c),
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_number_tokens() {
+        let source = r#"1"#;
+        let expected_tokens = vec![
+            Token::new(TokenType::Number, "1", 1),
+            Token::new(TokenType::Eof, "", 1),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_numbers_tokens() {
+        let source = r#"123"#;
+        let expected_tokens = vec![
+            Token::new(TokenType::Number, "123", 1),
+            Token::new(TokenType::Eof, "", 1),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
+
+    #[test]
+    fn test_decimals_tokens() {
+        let source = r#"1.23"#;
+        let expected_tokens = vec![
+            Token::new(TokenType::Number, "1.23", 1),
+            Token::new(TokenType::Eof, "", 1),
+        ];
+        let scanner = Scanner::new(source);
+        assert_eq!(scanner.scan().tokens, expected_tokens);
+    }
 
     #[test]
     fn test_single_character_tokens() {
@@ -390,5 +445,4 @@ mod tests {
         let scanner = Scanner::new(source);
         assert_eq!(scanner.scan().tokens, expected_tokens);
     }
-
 }
