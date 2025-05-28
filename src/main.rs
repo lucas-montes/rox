@@ -4,6 +4,7 @@ use std::{fmt::Display, path::PathBuf};
 use parser::Parser;
 use scanner::Scanner;
 
+mod interpreter;
 mod parser;
 mod scanner;
 mod syntax_tree;
@@ -43,6 +44,8 @@ impl<'a> Command<'a> {
                 println!("**********");
                 let parser = Parser::new(scan.tokens());
                 println!("{:?}", &parser);
+                let exprs = parser.results();
+                exprs.first().unwrap().evaluate().unwrap();
             }
         }
     }

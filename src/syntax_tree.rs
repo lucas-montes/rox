@@ -1,6 +1,7 @@
-use std::borrow::Cow;
-
-use crate::tokens::{Token, TokenType};
+use crate::{
+    interpreter::evaluate_statement,
+    tokens::{Token, TokenType},
+};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum UnaryOperator {
@@ -17,6 +18,7 @@ impl From<&TokenType> for UnaryOperator {
         }
     }
 }
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal<'a> {
     String(&'a str),
@@ -25,6 +27,7 @@ pub enum Literal<'a> {
     True,
     Nil,
 }
+
 impl<'a> From<Token<'a>> for Literal<'a> {
     fn from(value: Token<'a>) -> Self {
         match value.kind() {
@@ -69,7 +72,6 @@ impl From<&TokenType> for BinaryOperator {
     }
 }
 
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr<'a> {
     Literal(Literal<'a>),
@@ -92,5 +94,17 @@ impl<'a> Expr<'a> {
     }
     pub fn literal(expr: Literal<'a>) -> Self {
         Self::Literal(expr)
+    }
+}
+
+#[derive(Debug)]
+pub enum Stmt<'a> {
+    Expression(Expr<'a>),
+    Print(Expr<'a>),
+}
+
+impl<'a> Stmt<'a> {
+    pub fn evaluate(&'a self) -> Result<(), crate::interpreter::InterpreterError> {
+        evaluate_statement(self)
     }
 }

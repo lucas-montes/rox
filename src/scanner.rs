@@ -141,7 +141,7 @@ impl<'a> Iterator for ScanIter<'a> {
                 {
                     next_pos = next_pos1;
                     if next_char == '.' {
-                        while let Some((next_pos2, c)) =
+                        while let Some((next_pos2, _)) =
                             self.inner.next_if(|(_, c)| c.is_ascii_digit())
                         {
                             next_pos = next_pos2;

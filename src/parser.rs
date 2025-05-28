@@ -1,27 +1,30 @@
 use crate::{
-    syntax_tree::Expr,
+    syntax_tree::{Expr, Stmt},
     tokens::{Token, TokenType},
 };
 
 #[derive(Default, Debug)]
 pub struct Parser<'a> {
-    exprs: Vec<Expr<'a>>,
+    results: Vec<Stmt<'a>>,
     errors: Vec<ParserError>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: Vec<Token<'a>>) -> Self {
-        let mut parser = Self {
-            ..Default::default()
-        };
+        let mut results = Vec::with_capacity(tokens.len());
+        let mut errors = Vec::new();
 
-        for expr in ParserIter::new(tokens) {
-            match expr {
-                Ok(exp) => parser.exprs.push(exp),
-                Err(err) => parser.errors.push(err),
+        for stmt in ParserIter::new(tokens) {
+            match stmt {
+                Ok(v) => results.push(v),
+                Err(err) => errors.push(err),
             }
         }
-        parser
+        Self { results, errors }
+    }
+
+    pub fn results(&self) -> &[Stmt<'a>] {
+        &self.results
     }
 }
 
@@ -30,7 +33,8 @@ enum ParserError {
     Missing,
 }
 
-type ParserResult<'a> = Result<Expr<'a>, ParserError>;
+type ParserExprResult<'a> = Result<Expr<'a>, ParserError>;
+type ParserResult<'a> = Result<Stmt<'a>, ParserError>;
 
 struct ParserIter<'a> {
     inner: std::iter::Peekable<std::vec::IntoIter<Token<'a>>>,
@@ -43,12 +47,12 @@ impl<'a> ParserIter<'a> {
         }
     }
 
-    fn expression(&mut self) -> ParserResult<'a> {
+    fn expression(&mut self) -> ParserExprResult<'a> {
         self.equality()
     }
 
     /// primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
-    fn primary(&mut self) -> ParserResult<'a> {
+    fn primary(&mut self) -> ParserExprResult<'a> {
         if let Some(token) = self.inner.next_if(|t| {
             matches!(
                 t.kind(),
@@ -77,10 +81,10 @@ impl<'a> ParserIter<'a> {
     }
 
     /// unary -> ( "!" | "-" ) unary | primary;
-    fn unary(&mut self) -> ParserResult<'a> {
+    fn unary(&mut self) -> ParserExprResult<'a> {
         match self
             .inner
-            .next_if(|t| matches!(t.kind(), TokenType::Slash | TokenType::Star))
+            .next_if(|t| matches!(t.kind(), TokenType::Bang | TokenType::Minus))
         {
             Some(token) => Ok(Expr::unary(token.kind().into(), self.unary()?)),
             None => self.primary(),
@@ -88,7 +92,7 @@ impl<'a> ParserIter<'a> {
     }
 
     /// factor -> unary ( ( "/" | "*" ) unary )* ;
-    fn factor(&mut self) -> ParserResult<'a> {
+    fn factor(&mut self) -> ParserExprResult<'a> {
         let mut expr = self.unary()?;
         while let Some(token) = self
             .inner
@@ -100,7 +104,7 @@ impl<'a> ParserIter<'a> {
     }
 
     /// term -> factor ( ( "-" | "+" ) factor )* ;
-    fn term(&mut self) -> ParserResult<'a> {
+    fn term(&mut self) -> ParserExprResult<'a> {
         let mut expr = self.factor()?;
         while let Some(token) = self
             .inner
@@ -112,7 +116,7 @@ impl<'a> ParserIter<'a> {
     }
 
     /// comparaison -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-    fn comparaison(&mut self) -> ParserResult<'a> {
+    fn comparaison(&mut self) -> ParserExprResult<'a> {
         let mut expr = self.term()?;
         while let Some(token) = self.inner.next_if(|t| {
             matches!(
@@ -129,7 +133,7 @@ impl<'a> ParserIter<'a> {
     }
 
     /// equality -> comparaison ( ( "!=" | "==" ) comparaison )* ;
-    fn equality(&mut self) -> ParserResult<'a> {
+    fn equality(&mut self) -> ParserExprResult<'a> {
         let mut expr = self.comparaison()?;
         while let Some(token) = self
             .inner
@@ -159,6 +163,28 @@ impl<'a> ParserIter<'a> {
             }
         }
     }
+
+    fn statement(&mut self) -> ParserResult<'a> {
+        match self.inner.next_if(|t| t.kind().eq(&TokenType::Print)) {
+            Some(_) => self.print_statement(),
+            None => self.expression_statement(),
+        }
+    }
+
+    fn print_statement(&mut self) -> ParserResult<'a> {
+        let expr = self.expression()?;
+        self.inner
+            .next_if(|t| t.kind().eq(&TokenType::Semicolon))
+            .ok_or(ParserError::Missing)?;
+        Ok(Stmt::Print(expr))
+    }
+    fn expression_statement(&mut self) -> ParserResult<'a> {
+        let expr = self.expression()?;
+        self.inner
+            .next_if(|t| t.kind().eq(&TokenType::Semicolon))
+            .ok_or(ParserError::Missing)?;
+        Ok(Stmt::Expression(expr))
+    }
 }
 
 impl<'a> Iterator for ParserIter<'a> {
@@ -167,27 +193,14 @@ impl<'a> Iterator for ParserIter<'a> {
         match self.inner.peek() {
             Some(t) => {
                 if t.kind().eq(&TokenType::Eof) {
-                   return None;
+                    println!("im eod {:?}", self.inner);
+                    self.inner.next()?;
+                    return None;
                 };
-                Some(self.expression())
+                println!("parser is in: {:?}", t);
+                Some(self.statement())
             }
             None => None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::tokens::TokenType;
-
-    use super::*;
-
-    #[test]
-    fn test_number_tokens() {
-        let tokens = vec![
-            Token::new(TokenType::Number, "1", 1),
-            Token::new(TokenType::Eof, "", 1),
-        ];
-        let parser = ParserIter::new(tokens);
     }
 }
