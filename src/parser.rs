@@ -5,17 +5,23 @@ use crate::{
 
 #[derive(Default, Debug)]
 pub struct Parser<'a> {
-    tokens: Vec<Token<'a>>,
     exprs: Vec<Expr<'a>>,
     errors: Vec<ParserError>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: Vec<Token<'a>>) -> Self {
-        Self {
-            tokens,
+        let mut parser = Self {
             ..Default::default()
+        };
+
+        for expr in ParserIter::new(tokens) {
+            match expr {
+                Ok(exp) => parser.exprs.push(exp),
+                Err(err) => parser.errors.push(err),
+            }
         }
+        parser
     }
 }
 
@@ -133,12 +139,40 @@ impl<'a> ParserIter<'a> {
         }
         Ok(expr)
     }
+
+    fn synchronize(&mut self) {
+        while let Some(token) = self.inner.next() {
+            if matches!(
+                token.kind(),
+                TokenType::Eof
+                    | TokenType::Semicolon
+                    | TokenType::Class
+                    | TokenType::For
+                    | TokenType::Fun
+                    | TokenType::If
+                    | TokenType::Print
+                    | TokenType::Return
+                    | TokenType::Var
+                    | TokenType::While
+            ) {
+                return;
+            }
+        }
+    }
 }
 
 impl<'a> Iterator for ParserIter<'a> {
-    type Item = Token<'a>;
+    type Item = ParserResult<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        match self.inner.peek() {
+            Some(t) => {
+                if t.kind().eq(&TokenType::Eof) {
+                   return None;
+                };
+                Some(self.expression())
+            }
+            None => None,
+        }
     }
 }
 

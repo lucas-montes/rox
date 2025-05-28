@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::{fmt::Display, path::PathBuf};
 
+use parser::Parser;
 use scanner::Scanner;
 
 mod parser;
@@ -38,7 +39,10 @@ impl<'a> Command<'a> {
             }
             Self::Run(v) => {
                 let scan = Scanner::new(v).scan();
-                println!("{:?}", scan);
+                println!("{:?}", &scan);
+                println!("**********");
+                let parser = Parser::new(scan.tokens());
+                println!("{:?}", &parser);
             }
         }
     }

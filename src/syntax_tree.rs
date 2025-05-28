@@ -51,37 +51,44 @@ pub enum BinaryOperator {
     BangEqual,
     EqualEqual,
 }
-
 impl From<&TokenType> for BinaryOperator {
     fn from(value: &TokenType) -> Self {
         match value {
             TokenType::Star => Self::Star,
             TokenType::EqualEqual => Self::EqualEqual,
             TokenType::BangEqual => Self::BangEqual,
+            TokenType::Slash => Self::Slash,
+            TokenType::Plus => Self::Plus,
+            TokenType::Minus => Self::Minus,
+            TokenType::Greater => Self::Greater,
+            TokenType::GreaterEqual => Self::GreaterEqual,
+            TokenType::Less => Self::Less,
+            TokenType::LessEqual => Self::LessEqual,
             _ => todo!(),
         }
     }
 }
 
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr<'a> {
     Literal(Literal<'a>),
-    Grouping(Cow<'a, Expr<'a>>),
-    Unary(UnaryOperator, Cow<'a, Expr<'a>>),
-    Binary(Cow<'a, Expr<'a>>, BinaryOperator, Cow<'a, Expr<'a>>),
+    Grouping(Box<Expr<'a>>),
+    Unary(UnaryOperator, Box<Expr<'a>>),
+    Binary(Box<Expr<'a>>, BinaryOperator, Box<Expr<'a>>),
 }
 
 impl<'a> Expr<'a> {
     pub fn binary(expr: Expr<'a>, op: BinaryOperator, right: Expr<'a>) -> Self {
-        Self::Binary(Cow::Owned(expr), op, Cow::Owned(right))
+        Self::Binary(Box::new(expr), op, Box::new(right))
     }
 
     pub fn unary(op: UnaryOperator, expr: Expr<'a>) -> Self {
-        Self::Unary(op, Cow::Owned(expr))
+        Self::Unary(op, Box::new(expr))
     }
 
     pub fn grouping(expr: Expr<'a>) -> Self {
-        Self::Grouping(Cow::Owned(expr))
+        Self::Grouping(Box::new(expr))
     }
     pub fn literal(expr: Literal<'a>) -> Self {
         Self::Literal(expr)

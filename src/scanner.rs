@@ -46,6 +46,10 @@ impl<'a> Scanner<'a> {
         }
         self
     }
+
+    pub fn tokens(self) -> Vec<Token<'a>> {
+        self.tokens
+    }
 }
 
 struct ScanIter<'a> {
