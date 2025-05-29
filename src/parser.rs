@@ -23,8 +23,8 @@ impl<'a> Parser<'a> {
         Self { results, errors }
     }
 
-    pub fn results(&self) -> &[Stmt<'a>] {
-        &self.results
+    pub fn results(self) -> Vec<Stmt<'a>> {
+        self.results
     }
 }
 
@@ -51,7 +51,7 @@ impl<'a> ParserIter<'a> {
         self.equality()
     }
 
-    /// primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+    /// primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
     fn primary(&mut self) -> ParserExprResult<'a> {
         if let Some(token) = self.inner.next_if(|t| {
             matches!(
@@ -62,6 +62,7 @@ impl<'a> ParserIter<'a> {
                     | TokenType::False
                     | TokenType::True
                     | TokenType::LeftParen
+                    | TokenType::Identifier
             )
         }) {
             return match token.kind() {
@@ -74,6 +75,7 @@ impl<'a> ParserIter<'a> {
 
                     Ok(Expr::grouping(expr))
                 }
+                TokenType::Identifier => Ok(Expr::Variable(token)),
                 _ => Ok(Expr::literal(token.into())),
             };
         }
@@ -164,11 +166,37 @@ impl<'a> ParserIter<'a> {
         }
     }
 
+    fn declaration(&mut self) -> ParserResult<'a> {
+        match self.inner.next_if(|t| t.kind().eq(&TokenType::Var)) {
+            Some(_) => self.variable_declaration(),
+            None => self.statement(),
+        }
+    }
+
     fn statement(&mut self) -> ParserResult<'a> {
         match self.inner.next_if(|t| t.kind().eq(&TokenType::Print)) {
             Some(_) => self.print_statement(),
             None => self.expression_statement(),
         }
+    }
+
+    fn variable_declaration(&mut self) -> ParserResult<'a> {
+        let token = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::Identifier))
+            .ok_or(ParserError::Missing)?;
+        let mut expr = None;
+        if self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::Equal))
+            .is_some()
+        {
+            expr = Some(self.expression()?);
+        };
+        self.inner
+            .next_if(|t| t.kind().eq(&TokenType::Semicolon))
+            .ok_or(ParserError::Missing)?;
+        Ok(Stmt::Var(token.value(), expr))
     }
 
     fn print_statement(&mut self) -> ParserResult<'a> {
@@ -198,7 +226,12 @@ impl<'a> Iterator for ParserIter<'a> {
                     return None;
                 };
                 println!("parser is in: {:?}", t);
-                Some(self.statement())
+                let declaration = self.declaration();
+                //TODO: check if it makes sense
+                if declaration.is_err() {
+                    self.synchronize();
+                }
+                Some(declaration)
             }
             None => None,
         }

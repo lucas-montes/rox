@@ -1,9 +1,12 @@
 use std::io::{self, Write};
 use std::{fmt::Display, path::PathBuf};
 
+use environment::Environment;
+use interpreter::Interpreter;
 use parser::Parser;
 use scanner::Scanner;
 
+mod environment;
 mod interpreter;
 mod parser;
 mod scanner;
@@ -15,16 +18,16 @@ struct ErrorReport {
     msg: String,
 }
 
-enum Command<'a> {
+enum Command {
     Exit,
-    Run(&'a str),
+    Run(String),
 }
 
-impl<'a> Command<'a> {
-    fn new(input: &'a str) -> Self {
+impl Command {
+    fn new(input: String) -> Self {
         let (command, value) = match input.split_once(' ') {
             Some((c, v)) => (c, v),
-            None => (input, ""),
+            None => (input.as_str(), ""),
         };
         let (command, _) = (command.trim(), value.trim());
         match command {
@@ -33,24 +36,23 @@ impl<'a> Command<'a> {
         }
     }
 
-    fn execute(&self) {
+    fn execute(self,  inter: &mut Interpreter<'_>) {
         match self {
             Self::Exit => {
                 std::process::exit(0);
             }
             Self::Run(v) => {
-                let scan = Scanner::new(v).scan();
-                println!("{:?}", &scan);
-                println!("**********");
+                let scan = Scanner::new(v.as_str()).scan();
                 let parser = Parser::new(scan.tokens());
                 println!("{:?}", &parser);
-                let exprs = parser.results();
-                exprs.first().unwrap().evaluate().unwrap();
+                let stmts = parser.results();
+                let stmt = stmts.first().unwrap();
+                inter.evaluate_statement(stmt).unwrap();
             }
         }
     }
 }
-impl Display for Command<'_> {
+impl Display for Command {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Run(c) => {
@@ -62,12 +64,13 @@ impl Display for Command<'_> {
 }
 
 fn interactive() {
+    let mut inter = Interpreter::default();
     loop {
         print!("$ ");
         io::stdout().flush().unwrap(); //The text appears right away without waiting for enter.
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
-        Command::new(&input).execute()
+        Command::new(input).execute(&mut inter)
     }
 }
 

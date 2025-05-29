@@ -1,5 +1,6 @@
+use std::fmt::Display;
+
 use crate::{
-    interpreter::evaluate_statement,
     tokens::{Token, TokenType},
 };
 
@@ -26,6 +27,19 @@ pub enum Literal<'a> {
     False,
     True,
     Nil,
+}
+
+impl<'a> Display for Literal<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(v) => write!(f, "{}", v),
+            Self::Number(v) => write!(f, "{}", v),
+            Self::False => write!(f, "False"),
+            Self::True => write!(f, "True"),
+            Self::Nil => write!(f, "Nil"),
+            _ => todo!(),
+        }
+    }
 }
 
 impl<'a> From<Token<'a>> for Literal<'a> {
@@ -78,6 +92,7 @@ pub enum Expr<'a> {
     Grouping(Box<Expr<'a>>),
     Unary(UnaryOperator, Box<Expr<'a>>),
     Binary(Box<Expr<'a>>, BinaryOperator, Box<Expr<'a>>),
+    Variable(Token<'a>),
 }
 
 impl<'a> Expr<'a> {
@@ -101,10 +116,5 @@ impl<'a> Expr<'a> {
 pub enum Stmt<'a> {
     Expression(Expr<'a>),
     Print(Expr<'a>),
-}
-
-impl<'a> Stmt<'a> {
-    pub fn evaluate(&'a self) -> Result<(), crate::interpreter::InterpreterError> {
-        evaluate_statement(self)
-    }
+    Var(&'a str, Option<Expr<'a>>),
 }
