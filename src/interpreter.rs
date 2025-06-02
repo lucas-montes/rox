@@ -8,21 +8,21 @@ pub enum InterpreterError {
     WrongValue,
 }
 
-pub type InterpreterResult<'a> = Result<Literal<'a>, InterpreterError>;
+pub type InterpreterResult = Result<Literal, InterpreterError>;
 
 #[derive(Default)]
-pub struct Interpreter<'a> {
-    env: Environment<'a>,
+pub struct Interpreter {
+    env: Environment,
 }
 
-impl<'a> Interpreter<'a> {
+impl<'a> Interpreter {
     pub fn evaluate_statement(&mut self, stmt: &'a Stmt<'a>) -> Result<(), InterpreterError> {
         match stmt {
             Stmt::Expression(expr) => {
-                self.evaluate_expression(&expr)?;
+                self.evaluate_expression(expr)?;
             }
             Stmt::Print(expr) => {
-                let result = self.evaluate_expression(&expr)?;
+                let result = self.evaluate_expression(expr)?;
                 println!("{}", result);
             }
             Stmt::Var(var, expr) => {
@@ -31,14 +31,14 @@ impl<'a> Interpreter<'a> {
                     .map(|t| self.evaluate_expression(t))
                     .transpose()?
                     .unwrap_or(Literal::Nil);
-                self.env.insert(var, result);
+                self.env.insert((*var).into(), result);
             }
             _ => todo!(),
         };
         Ok(())
     }
 
-    fn evaluate_expression(&mut self, expr: &'a Expr<'a>) -> InterpreterResult<'a> {
+    fn evaluate_expression(&mut self, expr: &'a Expr<'a>) -> InterpreterResult {
         match expr {
             Expr::Literal(lit) => Ok(lit.to_owned()),
             Expr::Grouping(expr) => self.evaluate_expression(expr),
@@ -57,7 +57,7 @@ impl<'a> Interpreter<'a> {
         op: &'a BinaryOperator,
         exprl: &'a Expr<'a>,
         exprr: &'a Expr<'a>,
-    ) -> InterpreterResult<'a> {
+    ) -> InterpreterResult {
         let litl = self.evaluate_expression(exprl)?;
         let litr = self.evaluate_expression(exprr)?;
         match op {
@@ -86,7 +86,7 @@ impl<'a> Interpreter<'a> {
         &mut self,
         op: &'a UnaryOperator,
         expr: &'a Expr<'a>,
-    ) -> InterpreterResult<'a> {
+    ) -> InterpreterResult {
         let lit = self.evaluate_expression(expr)?;
         match op {
             UnaryOperator::Minus => match lit {

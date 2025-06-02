@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use crate::{
     tokens::{Token, TokenType},
@@ -20,16 +20,17 @@ impl From<&TokenType> for UnaryOperator {
     }
 }
 
+//TODO: if we can remove clone we could use box
 #[derive(Debug, PartialEq, Clone)]
-pub enum Literal<'a> {
-    String(&'a str),
+pub enum Literal {
+    String(Arc<str>),
     Number(f64),
     False,
     True,
     Nil,
 }
 
-impl<'a> Display for Literal<'a> {
+impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::String(v) => write!(f, "{}", v),
@@ -42,13 +43,13 @@ impl<'a> Display for Literal<'a> {
     }
 }
 
-impl<'a> From<Token<'a>> for Literal<'a> {
+impl<'a> From<Token<'a>> for Literal {
     fn from(value: Token<'a>) -> Self {
         match value.kind() {
             TokenType::False => Self::False,
             TokenType::True => Self::True,
             TokenType::Nil => Self::Nil,
-            TokenType::String => Self::String(value.value()),
+            TokenType::String => Self::String(value.value().into()),
             TokenType::Number => Self::Number(value.value().parse().unwrap()),
             _ => todo!(),
         }
@@ -88,7 +89,7 @@ impl From<&TokenType> for BinaryOperator {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr<'a> {
-    Literal(Literal<'a>),
+    Literal(Literal),
     Grouping(Box<Expr<'a>>),
     Unary(UnaryOperator, Box<Expr<'a>>),
     Binary(Box<Expr<'a>>, BinaryOperator, Box<Expr<'a>>),
@@ -107,7 +108,7 @@ impl<'a> Expr<'a> {
     pub fn grouping(expr: Expr<'a>) -> Self {
         Self::Grouping(Box::new(expr))
     }
-    pub fn literal(expr: Literal<'a>) -> Self {
+    pub fn literal(expr: Literal) -> Self {
         Self::Literal(expr)
     }
 }

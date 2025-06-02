@@ -36,18 +36,20 @@ impl Command {
         }
     }
 
-    fn execute(self,  inter: &mut Interpreter<'_>) {
+    fn execute(self, inter: &mut Interpreter) {
         match self {
             Self::Exit => {
                 std::process::exit(0);
             }
             Self::Run(v) => {
-                let scan = Scanner::new(v.as_str()).scan();
+                let scan = Scanner::new(&v).scan();
                 let parser = Parser::new(scan.tokens());
-                println!("{:?}", &parser);
                 let stmts = parser.results();
-                let stmt = stmts.first().unwrap();
-                inter.evaluate_statement(stmt).unwrap();
+                for stmt in stmts {
+                    if let Err(err) = inter.evaluate_statement(&stmt) {
+                        eprintln!("error interpreting {:?}", &err);
+                    };
+                }
             }
         }
     }

@@ -221,11 +221,9 @@ impl<'a> Iterator for ParserIter<'a> {
         match self.inner.peek() {
             Some(t) => {
                 if t.kind().eq(&TokenType::Eof) {
-                    println!("im eod {:?}", self.inner);
                     self.inner.next()?;
                     return None;
                 };
-                println!("parser is in: {:?}", t);
                 let declaration = self.declaration();
                 //TODO: check if it makes sense
                 if declaration.is_err() {
