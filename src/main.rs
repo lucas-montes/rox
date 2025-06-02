@@ -3,7 +3,10 @@ use std::{fmt::Display, path::PathBuf};
 
 use scanner::Scanner;
 
+mod parser;
 mod scanner;
+mod syntax_tree;
+mod tokens;
 
 struct ErrorReport {
     line: u64,
@@ -34,7 +37,8 @@ impl<'a> Command<'a> {
                 std::process::exit(0);
             }
             Self::Run(v) => {
-                Scanner::new(v).scan();
+                let scan = Scanner::new(v).scan();
+                println!("{:?}", scan);
             }
         }
     }
