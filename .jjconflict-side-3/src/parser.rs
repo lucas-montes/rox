@@ -199,10 +199,7 @@ impl<'a> ParserIter<'a> {
         let capacity = self.inner.size_hint();
         let mut block = Vec::with_capacity(capacity.1.unwrap_or(capacity.0));
 
-        while self
-            .inner
-            .next_if(|t| !matches!(t.kind(), TokenType::RightBrace | TokenType::Eof))
-            .is_some()
+        while self.inner.peek().is_some_and(|t|!matches!(t.kind(), TokenType::RightBrace | TokenType::Eof))
         {
             block.push(self.declaration()?);
         }
@@ -252,27 +249,29 @@ impl<'a> ParserIter<'a> {
         {
             expr = Some(self.expression()?);
         };
-        self.inner
-            .next_if(|t| t.kind().eq(&TokenType::Semicolon))
-            .ok_or(ParserError::MissingSemicolon)?;
+        self.consume_semicolon()?;
         Ok(Stmt::Var(token.value(), expr))
     }
 
     fn print_statement(&mut self) -> ParserResult<'a> {
         let expr = self.expression()?;
-        self.inner
-            .next_if(|t| t.kind().eq(&TokenType::Semicolon))
-            .ok_or(ParserError::MissingSemicolon)?;
+        self.consume_semicolon()?;
         Ok(Stmt::Print(expr))
     }
 
     fn expression_statement(&mut self) -> ParserResult<'a> {
         let expr = self.expression()?;
+        self.consume_semicolon()?;
+        Ok(Stmt::Expression(expr))
+    }
+
+    fn consume_semicolon(&mut self) -> Result<(), ParserError> {
         self.inner
             .next_if(|t| t.kind().eq(&TokenType::Semicolon))
             .ok_or(ParserError::MissingSemicolon)?;
-        Ok(Stmt::Expression(expr))
+        Ok(())
     }
+
 }
 
 impl<'a> Iterator for ParserIter<'a> {

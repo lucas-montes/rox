@@ -1,7 +1,6 @@
 use std::io::{self, Write};
 use std::{fmt::Display, path::PathBuf};
 
-use environment::Environment;
 use interpreter::Interpreter;
 use parser::Parser;
 use scanner::Scanner;
@@ -54,7 +53,7 @@ impl Command {
                 };
                 let stmts = parser.results();
                 for stmt in stmts {
-                    if let Err(err) = inter.evaluate_statement(&stmt) {
+                    if let Err(err) = inter.evaluate(&stmt) {
                         eprintln!("error interpreting {:?}", &err);
                     };
                 }
