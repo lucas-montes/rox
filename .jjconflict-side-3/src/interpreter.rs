@@ -11,13 +11,14 @@ pub enum InterpreterError {
 
 pub type InterpreterResult = Result<Literal, InterpreterError>;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Interpreter {
     env: Environment,
 }
 
 impl<'a> Interpreter {
     pub fn evaluate(&mut self, stmt: &'a Stmt<'a>) -> Result<(), InterpreterError> {
+        println!("{:?}",self);
         self.evaluate_statement(stmt)
     }
 
@@ -44,17 +45,17 @@ impl<'a> Interpreter {
     }
 
     fn evaluate_block(&mut self, stmts: &[Stmt<'a>]) -> Result<(), InterpreterError> {
-        let previous = std::mem::take(&mut self.env);
+             self.env.push_scope();
 
         let result = (|| {
-//TODO: does not work completely if some global value is updated in a scope it loses the update
-            self.env.set_enclosing(previous.clone());
             for stmt in stmts {
                 self.evaluate_statement(stmt)?;
             }
             Ok(())
         })();
-        self.env = previous;
+
+        self.env.pop_scope();
+
         result
     }
 
