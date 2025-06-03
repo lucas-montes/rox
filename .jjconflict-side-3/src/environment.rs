@@ -2,7 +2,7 @@ use std::{collections::HashMap, rc::Rc};
 
 use crate::syntax_tree::Literal;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Environment {
     enclosing: Option<Box<Environment>>,
     inner: HashMap<Rc<str>, Literal>,
@@ -32,9 +32,5 @@ impl Environment {
 
     pub fn set_enclosing(&mut self, env: Environment) {
         self.enclosing = Some(Box::new(env));
-    }
-
-    pub fn get_enclosing(&mut self) -> Environment {
-        *(self.enclosing.take().unwrap())
     }
 }

@@ -17,7 +17,11 @@ pub struct Interpreter {
 }
 
 impl<'a> Interpreter {
-    pub fn evaluate_statement(&mut self, stmt: &'a Stmt<'a>) -> Result<(), InterpreterError> {
+    pub fn evaluate(&mut self, stmt: &'a Stmt<'a>) -> Result<(), InterpreterError> {
+        self.evaluate_statement(stmt)
+    }
+
+    fn evaluate_statement(&mut self, stmt: &'a Stmt<'a>) -> Result<(), InterpreterError> {
         match stmt {
             Stmt::Expression(expr) => {
                 self.evaluate_expression(expr)?;
@@ -35,21 +39,22 @@ impl<'a> Interpreter {
                     .unwrap_or(Literal::Nil);
                 self.env.define(var, result);
             }
-            _ => todo!(),
         };
         Ok(())
     }
 
     fn evaluate_block(&mut self, stmts: &[Stmt<'a>]) -> Result<(), InterpreterError> {
         let previous = std::mem::take(&mut self.env);
-        self.env.set_enclosing(previous);
+
         let result = (|| {
+//TODO: does not work completely if some global value is updated in a scope it loses the update
+            self.env.set_enclosing(previous.clone());
             for stmt in stmts {
                 self.evaluate_statement(stmt)?;
             }
             Ok(())
         })();
-        self.env = self.env.get_enclosing();
+        self.env = previous;
         result
     }
 
