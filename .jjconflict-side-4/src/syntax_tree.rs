@@ -45,6 +45,10 @@ pub enum Literal {
 }
 
 impl Literal {
+    pub fn from_bool(value: bool) -> Self {
+        if value { Self::True } else { Self::False }
+    }
+
     pub fn is_truthy(&self) -> bool {
         match self {
             Self::False => false,
