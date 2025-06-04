@@ -1,10 +1,7 @@
 use super::{config, helper};
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use rox::Scanner;
-
-
-
 
 fn bench(c: &mut Criterion) {
     let mut benchmark = c.benchmark_group("Scanner");

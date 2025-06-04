@@ -18,7 +18,6 @@ pub struct Interpreter {
 
 impl<'a> Interpreter {
     pub fn evaluate(&mut self, stmt: &'a Stmt<'a>) -> Result<(), InterpreterError> {
-        println!("{:?}",self);
         self.evaluate_statement(stmt)
     }
 
@@ -32,6 +31,13 @@ impl<'a> Interpreter {
                 println!("{}", result);
             }
             Stmt::Block(stmts) => self.evaluate_block(stmts)?,
+            Stmt::If(cond, then_stmt, else_branch) => {
+                if self.evaluate_expression(cond)?.is_truthy() {
+                    self.evaluate_statement(then_stmt)?;
+                } else if let Some(else_stmt) = else_branch {
+                    self.evaluate_statement(else_stmt)?;
+                }
+            }
             Stmt::Var(var, expr) => {
                 let result = expr
                     .as_ref()
@@ -44,8 +50,16 @@ impl<'a> Interpreter {
         Ok(())
     }
 
+    fn evaluate_if(
+        &mut self,
+        condition: Expr<'a>,
+        then: Stmt<'a>,
+        else_branch: Option<Stmt<'a>>,
+    ) -> InterpreterError {
+    }
+
     fn evaluate_block(&mut self, stmts: &[Stmt<'a>]) -> Result<(), InterpreterError> {
-             self.env.push_scope();
+        self.env.push_scope();
 
         let result = (|| {
             for stmt in stmts {
@@ -116,6 +130,7 @@ impl<'a> Interpreter {
                 Literal::Number(v) => Ok(Literal::Number(-v)),
                 _ => todo!(),
             },
+            //TODO: use the is truthy or leverage this idea
             UnaryOperator::Bang => match lit {
                 Literal::False => Ok(Literal::True),
                 Literal::True => Ok(Literal::False),
@@ -126,7 +141,8 @@ impl<'a> Interpreter {
                     };
                     Ok(result)
                 }
-                _ => todo!(),
+                Literal::Nil => Ok(Literal::True),
+                Literal::String(..) => Ok(Literal::False),
             },
         }
     }

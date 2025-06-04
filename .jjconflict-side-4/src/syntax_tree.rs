@@ -1,8 +1,6 @@
 use std::{fmt::Display, sync::Arc};
 
-use crate::{
-    tokens::{Token, TokenType},
-};
+use crate::tokens::{Token, TokenType};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum UnaryOperator {
@@ -28,6 +26,22 @@ pub enum Literal {
     False,
     True,
     Nil,
+}
+
+impl Literal {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Self::False => false,
+            Self::True => true,
+            Self::Number(v) => match v {
+                0.0 => false,
+                _ => true,
+            },
+            Self::Nil => false,
+            //TODO: empty strings should be false?
+            Self::String(..) => true,
+        }
+    }
 }
 
 impl Display for Literal {
@@ -110,7 +124,7 @@ impl<'a> Expr<'a> {
         Self::Grouping(Box::new(expr))
     }
 
-    pub fn assign(token:Token<'a> ,expr: Expr<'a>) -> Self {
+    pub fn assign(token: Token<'a>, expr: Expr<'a>) -> Self {
         Self::Assign(token, Box::new(expr))
     }
 
@@ -125,4 +139,19 @@ pub enum Stmt<'a> {
     Print(Expr<'a>),
     Block(Vec<Stmt<'a>>),
     Var(&'a str, Option<Expr<'a>>),
+    If(Expr<'a>, Box<Stmt<'a>>, Option<Box<Stmt<'a>>>),
+}
+
+impl<'a> Stmt<'a> {
+    pub fn if_statement(
+        condition: Expr<'a>,
+        then: Stmt<'a>,
+        else_branch: Option<Stmt<'a>>,
+    ) -> Self {
+        Self::If(
+            condition,
+            Box::new(then),
+            else_branch.map(|eb| Box::new(eb)),
+        )
+    }
 }

@@ -1,7 +1,10 @@
-use std::{collections::HashMap, ops::{Deref, DerefMut}, rc::Rc};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+    rc::Rc,
+};
 
 use crate::syntax_tree::Literal;
-
 
 #[derive(Default, Debug)]
 pub struct InternalEnv(HashMap<Rc<str>, Literal>);
@@ -27,7 +30,9 @@ pub struct Environment {
 
 impl Default for Environment {
     fn default() -> Self {
-        Self { scopes: vec![InternalEnv::default()] }
+        Self {
+            scopes: vec![InternalEnv::default()],
+        }
     }
 }
 
@@ -57,7 +62,7 @@ impl Environment {
         None
     }
 
-     pub fn push_scope(&mut self) {
+    pub fn push_scope(&mut self) {
         self.scopes.push(InternalEnv::default());
     }
 

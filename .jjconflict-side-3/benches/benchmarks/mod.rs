@@ -1,17 +1,16 @@
+mod helper;
 pub mod parse;
 pub mod scan;
-mod helper;
 
 pub mod config {
-    use criterion::{measurement::WallTime, BenchmarkGroup, Criterion};
+    use criterion::{BenchmarkGroup, Criterion, measurement::WallTime};
     #[cfg(not(target_os = "windows"))]
     use pprof::criterion::{Output, PProfProfiler};
     use std::time::Duration;
 
     #[cfg(not(target_os = "windows"))]
     pub fn get_default_profiling_configs() -> Criterion {
-        Criterion::default()
-            .with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)))
+        Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)))
     }
 
     pub fn set_default_benchmark_configs(benchmark: &mut BenchmarkGroup<WallTime>) {

@@ -1,16 +1,7 @@
 use std::io::{self, Write};
 use std::{fmt::Display, path::PathBuf};
 
-use interpreter::Interpreter;
-use parser::Parser;
-use scanner::Scanner;
-
-mod environment;
-mod interpreter;
-mod parser;
-mod scanner;
-mod syntax_tree;
-mod tokens;
+use rox::{Interpreter, Parser, Scanner};
 
 struct ErrorReport {
     line: u64,

@@ -1,14 +1,13 @@
 use super::{config, helper};
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use rox::{Parser, Scanner};
-
 
 fn bench(c: &mut Criterion) {
     let mut benchmark = c.benchmark_group("Parser");
     config::set_default_benchmark_configs(&mut benchmark);
 
-// Simple arithmetic benchmark
+    // Simple arithmetic benchmark
     let simple_source = helper::generate_simple_arithmetic();
     let simple_tokens = Scanner::new(&simple_source).scan().tokens();
     benchmark.bench_with_input(
