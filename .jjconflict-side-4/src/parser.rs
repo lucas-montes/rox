@@ -1,7 +1,7 @@
 use std::ops::Not;
 
 use crate::{
-    syntax_tree::{Expr, Stmt},
+    syntax_tree::{Expr, Literal, Stmt},
     tokens::{Token, TokenType},
 };
 
@@ -241,12 +241,16 @@ impl<'a> ParserIter<'a> {
         }
     }
 
-    /// statement -> exprStmt | ifStmt | printStmt | whileStmt | block ;
+    /// statement -> exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
     fn statement(&mut self) -> ParserResult<'a> {
         if let Some(token) = self.inner.next_if(|t| {
             matches!(
                 t.kind(),
-                TokenType::If | TokenType::Print | TokenType::LeftBrace | TokenType::While
+                TokenType::If
+                    | TokenType::Print
+                    | TokenType::LeftBrace
+                    | TokenType::While
+                    | TokenType::For
             )
         }) {
             match token.kind() {
@@ -254,12 +258,79 @@ impl<'a> ParserIter<'a> {
                 TokenType::Print => return self.print_statement(),
                 TokenType::LeftBrace => return self.block(),
                 TokenType::While => return self.while_statement(),
-                _=> unreachable!("this should not happen")
+                TokenType::For => return self.for_statement(),
+                _ => unreachable!("this should not happen"),
             }
         }
         self.expression_statement()
     }
 
+    /// forStmt -> "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
+    fn for_statement(&mut self) -> ParserResult<'a> {
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::LeftParen))
+            .ok_or(ParserError::Missing)?;
+
+        let init  = if self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::Semicolon))
+            .is_some()
+        {
+             None
+        } else if self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::Var))
+            .is_some()
+        {
+            Some(self.variable_declaration()?)
+        } else {
+             Some(self.expression_statement()?)
+        };
+
+        let mut condition = None;
+        if self
+            .inner
+            .peek()
+            .is_some_and(|t| t.kind().eq(&TokenType::Semicolon).not())
+        {
+            condition = Some(self.expression()?);
+        }
+
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::Semicolon))
+            .ok_or(ParserError::Missing)?;
+
+        let mut increment = None;
+        if self
+            .inner
+            .peek()
+            .is_some_and(|t| t.kind().eq(&TokenType::RightParen).not())
+        {
+            increment = Some(self.expression()?);
+        }
+
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::RightParen))
+            .ok_or(ParserError::Missing)?;
+
+        let mut body = self.statement()?;
+
+        if let Some(inc) = increment {
+            body = Stmt::Block(vec![body, Stmt::Expression(inc)])
+        };
+
+        let condi = condition.unwrap_or(Expr::Literal(Literal::True));
+        body = Stmt::while_statement(condi, body);
+
+        if let Some(ini) = init {
+            body = Stmt::Block(vec![ini, body]);
+        }
+
+        Ok(body)
+    }
     /// whileStmt -> "while" "(" expression ")" statement ;
     fn while_statement(&mut self) -> ParserResult<'a> {
         let _ = self
