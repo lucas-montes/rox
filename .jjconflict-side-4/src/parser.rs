@@ -55,13 +55,14 @@ impl<'a> ParserIter<'a> {
         }
     }
 
+    /// expression -> assignment ;
     fn expression(&mut self) -> ParserExprResult<'a> {
         self.assignment()
     }
 
-    /// assignment -> IDENTIFIER "=" assignment | equality ;
+    /// assignment -> IDENTIFIER "=" assignment | logic_or ;
     fn assignment(&mut self) -> ParserExprResult<'a> {
-        let expr = self.equality()?;
+        let expr = self.logic_or()?;
         if self
             .inner
             .next_if(|t| matches!(t.kind(), TokenType::Equal))
@@ -190,6 +191,26 @@ impl<'a> ParserIter<'a> {
                 return;
             }
         }
+    }
+
+    /// logic_or -> logic_and ( "or" logic_and )* ;
+    fn logic_or(&mut self) -> ParserExprResult<'a> {
+        let mut expr = self.logic_and()?;
+
+        while let Some(token) = self.inner.next_if(|t| matches!(t.kind(), TokenType::Or)) {
+            expr = Expr::logical(expr, token.kind().into(), self.logic_and()?)
+        }
+        Ok(expr)
+    }
+
+    /// logic_and -> equality ( "and" equality )* ;
+    fn logic_and(&mut self) -> ParserExprResult<'a> {
+        let mut expr = self.equality()?;
+
+        while let Some(token) = self.inner.next_if(|t| matches!(t.kind(), TokenType::Or)) {
+            expr = Expr::logical(expr, token.kind().into(), self.equality()?)
+        }
+        Ok(expr)
     }
 
     // Statements

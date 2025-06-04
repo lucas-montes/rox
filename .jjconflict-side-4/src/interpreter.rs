@@ -1,6 +1,6 @@
 use crate::{
     environment::Environment,
-    syntax_tree::{BinaryOperator, Expr, Literal, Stmt, UnaryOperator},
+    syntax_tree::{BinaryOperator, Expr, Literal, LogicalOperator, Stmt, UnaryOperator},
 };
 
 #[derive(Debug)]
@@ -50,14 +50,6 @@ impl<'a> Interpreter {
         Ok(())
     }
 
-    fn evaluate_if(
-        &mut self,
-        condition: Expr<'a>,
-        then: Stmt<'a>,
-        else_branch: Option<Stmt<'a>>,
-    ) -> InterpreterError {
-    }
-
     fn evaluate_block(&mut self, stmts: &[Stmt<'a>]) -> Result<(), InterpreterError> {
         self.env.push_scope();
 
@@ -79,6 +71,7 @@ impl<'a> Interpreter {
             Expr::Grouping(expr) => self.evaluate_expression(expr),
             Expr::Unary(op, expr) => self.evaluate_unary(op, expr),
             Expr::Binary(exprl, op, exprr) => self.evaluate_binary(op, exprl, exprr),
+            Expr::Logical(exprl, op, exprr) => self.evaluate_logical(op, exprl, exprr),
             Expr::Assign(token, expr) => {
                 let val = self.evaluate_expression(expr)?;
                 self.env
@@ -93,6 +86,23 @@ impl<'a> Interpreter {
         }
     }
 
+    fn evaluate_logical(
+        &mut self,
+        op: &'a LogicalOperator,
+        exprl: &'a Expr<'a>,
+        exprr: &'a Expr<'a>,
+    ) -> InterpreterResult {
+        let litl = self.evaluate_expression(exprl)?;
+        let is_truthy = litl.is_truthy();
+        if op.eq(&LogicalOperator::Or) {
+            if is_truthy {
+                return Ok(litl);
+            }
+        } else if !is_truthy {
+            return Ok(litl);
+        }
+        self.evaluate_expression(exprr)
+    }
     fn evaluate_binary(
         &mut self,
         op: &'a BinaryOperator,
