@@ -207,7 +207,7 @@ impl<'a> ParserIter<'a> {
     fn logic_and(&mut self) -> ParserExprResult<'a> {
         let mut expr = self.equality()?;
 
-        while let Some(token) = self.inner.next_if(|t| matches!(t.kind(), TokenType::Or)) {
+        while let Some(token) = self.inner.next_if(|t| matches!(t.kind(), TokenType::And)) {
             expr = Expr::logical(expr, token.kind().into(), self.equality()?)
         }
         Ok(expr)
