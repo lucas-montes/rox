@@ -1,0 +1,17 @@
+var a = 4;
+var b;
+while (a<10){
+    a = a + 1;
+    print a;
+    if ((a/2) == 0)
+    b = a + 2;
+    else
+    b = a - 1;
+}
+
+if (a > b)
+print "a is big and cool";
+
+if (b and a)
+print b;
+print "b is cool too";

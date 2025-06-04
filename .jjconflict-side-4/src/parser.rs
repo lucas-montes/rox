@@ -241,30 +241,38 @@ impl<'a> ParserIter<'a> {
         }
     }
 
-    /// statement -> exprStmt | ifStmt | printStmt | block ;
+    /// statement -> exprStmt | ifStmt | printStmt | whileStmt | block ;
     fn statement(&mut self) -> ParserResult<'a> {
-        if self
-            .inner
-            .next_if(|t| t.kind().eq(&TokenType::If))
-            .is_some()
-        {
-            return self.if_statement();
-        }
-        if self
-            .inner
-            .next_if(|t| t.kind().eq(&TokenType::Print))
-            .is_some()
-        {
-            return self.print_statement();
-        }
-        if self
-            .inner
-            .next_if(|t| t.kind().eq(&TokenType::LeftBrace))
-            .is_some()
-        {
-            return self.block();
+        if let Some(token) = self.inner.next_if(|t| {
+            matches!(
+                t.kind(),
+                TokenType::If | TokenType::Print | TokenType::LeftBrace | TokenType::While
+            )
+        }) {
+            match token.kind() {
+                TokenType::If => return self.if_statement(),
+                TokenType::Print => return self.print_statement(),
+                TokenType::LeftBrace => return self.block(),
+                TokenType::While => return self.while_statement(),
+                _=> unreachable!("this should not happen")
+            }
         }
         self.expression_statement()
+    }
+
+    /// whileStmt -> "while" "(" expression ")" statement ;
+    fn while_statement(&mut self) -> ParserResult<'a> {
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::LeftParen))
+            .ok_or(ParserError::Missing)?;
+        let condition = self.expression()?;
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::RightParen))
+            .ok_or(ParserError::Missing)?;
+        let body = self.statement()?;
+        Ok(Stmt::while_statement(condition, body))
     }
 
     /// ifStmt -> "if" "(" expression ")" statement ("else" statement )? ;

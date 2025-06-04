@@ -32,6 +32,11 @@ impl<'a> Interpreter {
                 println!("{}", result);
             }
             Stmt::Block(stmts) => self.evaluate_block(stmts)?,
+            Stmt::While(cond, body) => {
+                while self.evaluate_expression(cond)?.is_truthy() {
+                    self.evaluate_statement(body)?
+                }
+            }
             Stmt::If(cond, then_stmt, else_branch) => {
                 if self.evaluate_expression(cond)?.is_truthy() {
                     self.evaluate_statement(then_stmt)?;
