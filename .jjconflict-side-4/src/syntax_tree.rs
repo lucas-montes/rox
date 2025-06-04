@@ -165,18 +165,19 @@ pub enum Stmt<'a> {
     Block(Vec<Stmt<'a>>),
     Var(&'a str, Option<Expr<'a>>),
     If(Expr<'a>, Box<Stmt<'a>>, Option<Box<Stmt<'a>>>),
+    While(Expr<'a>, Box<Stmt<'a>>),
 }
 
 impl<'a> Stmt<'a> {
+    pub fn while_statement(condition: Expr<'a>, body: Stmt<'a>) -> Self {
+        Self::While(condition, Box::new(body))
+    }
+
     pub fn if_statement(
         condition: Expr<'a>,
         then: Stmt<'a>,
         else_branch: Option<Stmt<'a>>,
     ) -> Self {
-        Self::If(
-            condition,
-            Box::new(then),
-            else_branch.map(|eb| Box::new(eb)),
-        )
+        Self::If(condition, Box::new(then), else_branch.map(Box::new))
     }
 }
