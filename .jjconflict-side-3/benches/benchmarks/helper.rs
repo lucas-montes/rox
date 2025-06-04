@@ -30,7 +30,8 @@ pub fn generate_complex_program() -> String {
 
         var fib = Fibonacci(10);
         print fib.calculate();
-    "#.to_string()
+    "#
+    .to_string()
 }
 
 pub fn generate_expression_statements() -> String {
@@ -49,7 +50,8 @@ pub fn generate_expression_statements() -> String {
             var local = counter + 1;
             counter = local * 2;
         }
-    "#.to_string()
+    "#
+    .to_string()
 }
 
 pub fn generate_nested_expression(depth: usize) -> String {
@@ -105,5 +107,6 @@ pub fn generate_full_program(repetitions: usize) -> String {
         } else {
             print "Product is larger or equal";
         }
-    "#.repeat(repetitions)
+    "#
+    .repeat(repetitions)
 }

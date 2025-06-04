@@ -199,7 +199,10 @@ impl<'a> ParserIter<'a> {
         let capacity = self.inner.size_hint();
         let mut block = Vec::with_capacity(capacity.1.unwrap_or(capacity.0));
 
-        while self.inner.peek().is_some_and(|t|!matches!(t.kind(), TokenType::RightBrace | TokenType::Eof))
+        while self
+            .inner
+            .peek()
+            .is_some_and(|t| !matches!(t.kind(), TokenType::RightBrace | TokenType::Eof))
         {
             block.push(self.declaration()?);
         }
@@ -217,8 +220,15 @@ impl<'a> ParserIter<'a> {
         }
     }
 
-    /// statement -> exprStmt | printStmt | block ;
+    /// statement -> exprStmt | ifStmt | printStmt | block ;
     fn statement(&mut self) -> ParserResult<'a> {
+        if self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::If))
+            .is_some()
+        {
+            return self.if_statement();
+        }
         if self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::Print))
@@ -234,6 +244,28 @@ impl<'a> ParserIter<'a> {
             return self.block();
         }
         self.expression_statement()
+    }
+
+    /// ifStmt -> "if" "(" expression ")" statement ("else" statement )? ;
+    fn if_statement(&mut self) -> ParserResult<'a> {
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::LeftParen))
+            .ok_or(ParserError::Missing)?;
+        let condition = self.expression()?;
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::RightParen))
+            .ok_or(ParserError::Missing)?;
+
+        let then = self.statement()?;
+        let else_branch = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::Else))
+            .map(|_| self.statement())
+            .transpose()?;
+
+        Ok(Stmt::if_statement(condition, then, else_branch))
     }
 
     fn variable_declaration(&mut self) -> ParserResult<'a> {
@@ -271,7 +303,6 @@ impl<'a> ParserIter<'a> {
             .ok_or(ParserError::MissingSemicolon)?;
         Ok(())
     }
-
 }
 
 impl<'a> Iterator for ParserIter<'a> {
