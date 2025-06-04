@@ -3,6 +3,22 @@ use std::{fmt::Display, sync::Arc};
 use crate::tokens::{Token, TokenType};
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum LogicalOperator {
+    Or,
+    And,
+}
+
+impl From<&TokenType> for LogicalOperator {
+    fn from(value: &TokenType) -> Self {
+        match value {
+            TokenType::Or => Self::Or,
+            TokenType::And => Self::And,
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum UnaryOperator {
     Minus,
     Bang,
@@ -108,10 +124,15 @@ pub enum Expr<'a> {
     Grouping(Box<Expr<'a>>),
     Unary(UnaryOperator, Box<Expr<'a>>),
     Binary(Box<Expr<'a>>, BinaryOperator, Box<Expr<'a>>),
+    Logical(Box<Expr<'a>>, LogicalOperator, Box<Expr<'a>>),
     Variable(Token<'a>),
 }
 
 impl<'a> Expr<'a> {
+    pub fn logical(expr: Expr<'a>, op: LogicalOperator, right: Expr<'a>) -> Self {
+        Self::Logical(Box::new(expr), op, Box::new(right))
+    }
+
     pub fn binary(expr: Expr<'a>, op: BinaryOperator, right: Expr<'a>) -> Self {
         Self::Binary(Box::new(expr), op, Box::new(right))
     }
