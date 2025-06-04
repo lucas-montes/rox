@@ -15,3 +15,14 @@ print "a is big and cool";
 if (b and a)
 print b;
 print "b is cool too";
+
+for (var c = 1; a<15; c = b + a){
+print a;
+print "a";
+print b;
+print "b";
+print c;
+print "c";
+
+a = a + 1;
+}
