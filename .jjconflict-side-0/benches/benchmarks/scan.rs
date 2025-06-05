@@ -1,7 +1,7 @@
 use super::{config, helper};
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
-use rox::Scanner;
+use yasl::Scanner;
 
 fn bench(c: &mut Criterion) {
     let mut benchmark = c.benchmark_group("Scanner");
