@@ -1,7 +1,8 @@
-use std::rc::Rc;
-
 use crate::{
-    interpreter::InterpreterResult, syntax_tree::{Callable, Literal, Stmt}, tokens::{Token, TokenLexem}, Interpreter
+    Interpreter,
+    interpreter::InterpreterResult,
+    syntax_tree::{Callable, Literal, Stmt},
+    tokens::TokenLexem,
 };
 
 #[derive(Debug, Clone)]
@@ -18,7 +19,7 @@ impl Function {
 }
 
 impl Callable for Function {
-    fn name(&self)->TokenLexem {
+    fn name(&self) -> TokenLexem {
         self.name.clone()
     }
 
@@ -39,8 +40,12 @@ impl Callable for Function {
             .zip(args)
             .for_each(|(p, a)| interpreter.env.define(p.clone(), a.clone()));
 
-        interpreter.evaluate_block(self.body.clone())?;
+        let value = interpreter.evaluate_block(self.body.clone());
         interpreter.env.pop_scope();
-        Ok(Literal::Nil)
+
+        match value? {
+            std::ops::ControlFlow::Break(literal) => Ok(literal),
+            std::ops::ControlFlow::Continue(literal) => Ok(literal),
+        }
     }
 }

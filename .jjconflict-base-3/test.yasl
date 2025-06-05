@@ -1,18 +1,12 @@
-fun ifEvenDiv(a,b){
-    var c;
-    print c;
-    if ((a/2) == 0)
-        c = b / (b + 3);
-    else
-        c = b * 0.25;
-    print c;
+fun fib(n){
+    if (n<= 1) return n;
+    return fib(n + 2) + fib(n - 1);
 }
 
-var a = 0;
 var start = clock();
-while (a<100000){
-    ifEvenDiv(a, a * 3.1415);
-    a = a + 1;
+
+for (var i = 0; i<20; i = i+1){
+print fib(i);
 }
 
 print "loop took";

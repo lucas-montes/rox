@@ -3,11 +3,6 @@ use std::{fmt::Display, path::PathBuf};
 
 use yasl::{Interpreter, Parser, Scanner};
 
-struct ErrorReport {
-    line: u64,
-    msg: String,
-}
-
 enum Command {
     Exit,
     Run(String),

@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
-    rc::Rc,
 };
 
 use crate::{syntax_tree::Literal, tokens::TokenLexem};
@@ -25,7 +24,6 @@ impl DerefMut for InternalEnv {
 
 #[derive(Debug)]
 pub struct Environment(Vec<InternalEnv>);
-
 
 impl Default for Environment {
     fn default() -> Self {

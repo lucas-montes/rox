@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Deref, rc::Rc};
+use std::{fmt::Display, rc::Rc};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {

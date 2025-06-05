@@ -36,7 +36,7 @@ fn bench(c: &mut Criterion) {
     );
 
     // Expression statements benchmark
-    let expr_source = helper::generate_expression_statements();
+    let expr_source = helper::generate_expression_statements(1);
     let expr_tokens = Scanner::new(&expr_source).scan().tokens();
     benchmark.bench_with_input(
         BenchmarkId::new("expression_statements", expr_tokens.len()),

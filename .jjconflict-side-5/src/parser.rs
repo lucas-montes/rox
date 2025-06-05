@@ -355,7 +355,9 @@ impl<'a> ParserIter<'a> {
                 params.push(
                     self.inner
                         .next_if(|t| t.kind().eq(&TokenType::Identifier))
-                        .ok_or(ParserError::MissingIdentifier)?.value().into(),
+                        .ok_or(ParserError::MissingIdentifier)?
+                        .value()
+                        .into(),
                 );
                 if self
                     .inner
@@ -369,7 +371,7 @@ impl<'a> ParserIter<'a> {
         Ok(params)
     }
 
-    /// statement -> exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
+    /// statement -> exprStmt | returnStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
     fn statement(&mut self) -> ParserResult {
         if let Some(token) = self.inner.next_if(|t| {
             matches!(
@@ -379,6 +381,7 @@ impl<'a> ParserIter<'a> {
                     | TokenType::LeftBrace
                     | TokenType::While
                     | TokenType::For
+                    | TokenType::Return
             )
         }) {
             match token.kind() {
@@ -387,10 +390,27 @@ impl<'a> ParserIter<'a> {
                 TokenType::LeftBrace => return self.block(),
                 TokenType::While => return self.while_statement(),
                 TokenType::For => return self.for_statement(),
+                TokenType::Return => return self.return_statement(),
                 _ => unreachable!("this should not happen"),
             }
         }
         self.expression_statement()
+    }
+
+    /// returnStmt -> "return" expression? ";" ;
+    fn return_statement(&mut self) -> ParserResult {
+        let mut expr = None;
+        if self
+            .inner
+            .peek()
+            .is_some_and(|t| t.kind().eq(&TokenType::Semicolon).not())
+        {
+            expr = Some(self.expression()?);
+        }
+        self.inner
+            .next_if(|t| t.kind().eq(&TokenType::Semicolon))
+            .ok_or(ParserError::MissingSemicolon)
+            .map(|_| Stmt::Return(expr))
     }
 
     /// forStmt -> "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
