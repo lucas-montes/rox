@@ -1,7 +1,7 @@
 use super::{config, helper};
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
-use rox::{Parser, Scanner};
+use yasl::{Parser, Scanner};
 
 fn bench(c: &mut Criterion) {
     let mut benchmark = c.benchmark_group("Parser");
