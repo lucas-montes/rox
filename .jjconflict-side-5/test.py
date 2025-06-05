@@ -1,20 +1,15 @@
 from time import time
 
 
-def if_even_div(a,b):
-    c = None
-    print(c)
-    if (a/2) == 0:
-        c = b / (b + 3)
-    else:
-        c = b * 0.25
-    print(c)
+def fibo(n):
+    if n<=1:
+        return n
+    return fibo(n-2) + fibo(n-1)
 
-a = 0
 start = time()
-while a<100000:
-    if_even_div(a, a * 3.1415)
-    a = a + 1
+
+for i in range(20):
+    print(fibo(i))
 
 print("loop took")
 print(time()-start)

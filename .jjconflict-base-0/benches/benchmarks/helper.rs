@@ -34,15 +34,36 @@ pub fn generate_complex_program() -> String {
     .to_string()
 }
 
-pub fn generate_expression_statements() -> String {
+pub fn generate_expression_statements(repetitions: usize) -> String {
     r#"
         var x = 1 + 2 * 3 - 4 / 5;
         var y = (x + 1) * (x - 1);
         var z = x == y or x != y and x > y;
-        print x + y * z;
 
+        for (var c = 1; a<15; c = b + a){
+            a = a + 1;
+        }
+
+        fun ifEvenDiv(a,b){
+            var c;
+            if ((a/2) == 0)
+                c = b / (b + 3);
+            else
+                c = b * 0.25;
+        }
+
+        var a = 0;
+        var start = clock();
+        while (a<100000){
+            ifEvenDiv(a, a * 3.1415);
+            a = a + 1;
+        }
+
+        var elapsed =  clock() - start;
+
+        var r = "negative";
         if (x > 0) {
-            print "positive";
+            var r = "positive";
         }
 
         var counter = 0;
@@ -51,7 +72,7 @@ pub fn generate_expression_statements() -> String {
             counter = local * 2;
         }
     "#
-    .to_string()
+    .repeat(repetitions)
 }
 
 pub fn generate_nested_expression(depth: usize) -> String {

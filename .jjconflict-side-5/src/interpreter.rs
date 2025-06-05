@@ -1,5 +1,5 @@
 use std::{
-    ptr::NonNull,
+    ops::ControlFlow,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -7,7 +7,7 @@ use crate::{
     environment::Environment,
     function::Function,
     syntax_tree::{BinaryOperator, Callable, Expr, Literal, LogicalOperator, Stmt, UnaryOperator},
-    tokens::{Token, TokenLexem},
+    tokens::TokenLexem,
 };
 
 #[derive(Debug)]
@@ -28,7 +28,7 @@ impl Callable for Clock {
     fn name(&self) -> TokenLexem {
         "clock".into()
     }
-    fn call(&self, interpreter: &mut Interpreter, args: &[Literal]) -> InterpreterResult {
+    fn call(&self, _interpreter: &mut Interpreter, _args: &[Literal]) -> InterpreterResult {
         Ok(SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -39,13 +39,12 @@ impl Callable for Clock {
         0
     }
     fn clone_box(&self) -> Box<dyn Callable> {
-        Box::new(Clock{})
+        Box::new(Clock {})
     }
 }
 
 #[derive(Debug)]
 pub struct Interpreter {
-
     pub(crate) env: Environment,
 }
 
@@ -55,19 +54,26 @@ impl Default for Interpreter {
 
         let clock = Literal::Callable(Box::new(Clock {}));
         env.define("clock".into(), clock);
-        Self {
-            env,
-        }
+        Self { env }
     }
 }
 
-impl<'a> Interpreter {
-    pub fn evaluate(&mut self, stmt: Stmt) -> Result<(), InterpreterError> {
+pub type InterpreterFastResult = Result<ControlFlow<Literal, Literal>, InterpreterError>;
+
+impl Interpreter {
+    pub fn evaluate(&mut self, stmt: Stmt) -> InterpreterFastResult {
         self.evaluate_statement(stmt)
     }
 
-    fn evaluate_statement(&mut self, stmt: Stmt) -> Result<(), InterpreterError> {
+    fn evaluate_statement(&mut self, stmt: Stmt) -> InterpreterFastResult {
         match stmt {
+            Stmt::Return(return_expr) => match return_expr {
+                Some(expr) => {
+                    let result = self.evaluate_expression(&expr)?;
+                    return Ok(ControlFlow::Break(result));
+                }
+                None => return Ok(ControlFlow::Break(Literal::Nil)),
+            },
             Stmt::Expression(expr) => {
                 self.evaluate_expression(&expr)?;
             }
@@ -75,17 +81,19 @@ impl<'a> Interpreter {
                 let result = self.evaluate_expression(&expr)?;
                 println!("{}", result);
             }
-            Stmt::Block(stmts) => self.evaluate_block(stmts)?,
+            Stmt::Block(stmts) => return self.evaluate_block(stmts),
             Stmt::While(cond, body) => {
                 while self.evaluate_expression(&cond)?.is_truthy() {
-                    self.evaluate_statement(*body.clone())?
+                    if let Some(value) = self.evaluate_statement(*body.clone())?.break_value() {
+                        return Ok(ControlFlow::Break(value));
+                    }
                 }
             }
             Stmt::If(cond, then_stmt, else_branch) => {
                 if self.evaluate_expression(&cond)?.is_truthy() {
-                    self.evaluate_statement(*then_stmt)?;
+                    return self.evaluate_statement(*then_stmt);
                 } else if let Some(else_stmt) = else_branch {
-                    self.evaluate_statement(*else_stmt)?;
+                    return self.evaluate_statement(*else_stmt);
                 }
             }
             Stmt::Var(var, expr) => {
@@ -100,17 +108,20 @@ impl<'a> Interpreter {
                 self.env.define(name, Literal::Callable(Box::new(fun)));
             }
         };
-        Ok(())
+        Ok(ControlFlow::Continue(Literal::Nil))
     }
 
-    pub(crate) fn evaluate_block(&mut self, stmts: Vec<Stmt>) -> Result<(), InterpreterError> {
+    pub(crate) fn evaluate_block(&mut self, stmts: Vec<Stmt>) -> InterpreterFastResult {
         self.env.push_scope();
 
         let result = (|| {
             for stmt in stmts {
-                self.evaluate_statement(stmt)?;
+                match self.evaluate_statement(stmt)? {
+                    ControlFlow::Break(value) => return Ok(ControlFlow::Break(value)),
+                    ControlFlow::Continue(..) => continue,
+                }
             }
-            Ok(())
+            Ok(ControlFlow::Continue(Literal::Nil))
         })();
 
         self.env.pop_scope();
@@ -125,7 +136,7 @@ impl<'a> Interpreter {
             Expr::Unary(op, expr) => self.evaluate_unary(op, expr),
             Expr::Binary(exprl, op, exprr) => self.evaluate_binary(op, exprl, exprr),
             Expr::Logical(exprl, op, exprr) => self.evaluate_logical(op, exprl, exprr),
-            Expr::Call(callee,  args) => self.evaluate_call(callee,  args),
+            Expr::Call(callee, args) => self.evaluate_call(callee, args),
             Expr::Assign(token, expr) => {
                 let val = self.evaluate_expression(expr)?;
                 self.env
@@ -140,11 +151,7 @@ impl<'a> Interpreter {
         }
     }
 
-    fn evaluate_call(
-        &mut self,
-        callee: &Expr,
-        arguments: &Vec<Expr>,
-    ) -> InterpreterResult {
+    fn evaluate_call(&mut self, callee: &Expr, arguments: &Vec<Expr>) -> InterpreterResult {
         let callee = self.evaluate_expression(callee)?;
 
         let arguments: Vec<Literal> = arguments
@@ -166,8 +173,8 @@ impl<'a> Interpreter {
 
     fn evaluate_logical(
         &mut self,
-        op:  &LogicalOperator,
-        exprl:  &Expr,
+        op: &LogicalOperator,
+        exprl: &Expr,
         exprr: &Expr,
     ) -> InterpreterResult {
         let litl = self.evaluate_expression(exprl)?;
@@ -185,8 +192,8 @@ impl<'a> Interpreter {
     fn evaluate_binary(
         &mut self,
         op: &BinaryOperator,
-        exprl:  &Expr,
-        exprr:  &Expr,
+        exprl: &Expr,
+        exprr: &Expr,
     ) -> InterpreterResult {
         let litl = self.evaluate_expression(exprl)?;
         let litr = self.evaluate_expression(exprr)?;

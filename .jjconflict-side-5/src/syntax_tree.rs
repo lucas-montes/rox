@@ -1,9 +1,12 @@
 use std::{
-    fmt::{Debug, Display}, rc::Rc, sync::Arc
+    fmt::{Debug, Display},
+    rc::Rc,
 };
 
 use crate::{
-    function::Function, interpreter::InterpreterResult, tokens::{Token, TokenLexem, TokenType}, Interpreter
+    Interpreter,
+    interpreter::InterpreterResult,
+    tokens::{Token, TokenLexem, TokenType},
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -38,14 +41,13 @@ impl From<&TokenType> for UnaryOperator {
     }
 }
 
-pub trait Callable: Debug  {
+pub trait Callable: Debug {
     fn name(&self) -> TokenLexem;
     fn arity(&self) -> usize;
     fn call(&self, interpreter: &mut Interpreter, args: &[Literal]) -> InterpreterResult;
-    fn clone_box(&self) -> Box<dyn Callable> ;
+    fn clone_box(&self) -> Box<dyn Callable>;
 }
 
-//TODO: if we can remove clone we could use box
 #[derive(Debug)]
 pub enum Literal {
     String(Rc<str>),
@@ -175,7 +177,7 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn call(callee: Expr,  arguments: Vec<Expr>) -> Self {
+    pub fn call(callee: Expr, arguments: Vec<Expr>) -> Self {
         Self::Call(Box::new(callee), arguments)
     }
 
@@ -208,6 +210,7 @@ impl Expr {
 pub enum Stmt {
     Expression(Expr),
     Print(Expr),
+    Return(Option<Expr>),
     Block(Vec<Stmt>),
     Var(TokenLexem, Option<Expr>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
@@ -220,11 +223,7 @@ impl Stmt {
         Self::While(condition, Box::new(body))
     }
 
-    pub fn if_statement(
-        condition: Expr,
-        then: Stmt,
-        else_branch: Option<Stmt>,
-    ) -> Self {
+    pub fn if_statement(condition: Expr, then: Stmt, else_branch: Option<Stmt>) -> Self {
         Self::If(condition, Box::new(then), else_branch.map(Box::new))
     }
 }
