@@ -36,9 +36,15 @@ impl<'a> Parser<'a> {
 
 #[derive(Debug)]
 pub enum ParserError {
+    MissingLeftBrace,
+    MissingLeftParentesis,
+    TooManyArguments,
     MissingBrace,
-    Missing,
+    MissingIdentifier,
     MissingSemicolon,
+    MissingAssignment,
+    MissingPrimaryValue,
+    MissingRightParentesis,
 }
 
 type ParserExprResult<'a> = Result<Expr<'a>, ParserError>;
@@ -72,7 +78,7 @@ impl<'a> ParserIter<'a> {
 
             match expr {
                 Expr::Variable(token) => return Ok(Expr::assign(token, value)),
-                _ => return Err(ParserError::Missing),
+                _ => return Err(ParserError::MissingAssignment),
             }
         }
         Ok(expr)
@@ -98,7 +104,7 @@ impl<'a> ParserIter<'a> {
                     let _ = self
                         .inner
                         .next_if(|t| t.kind().eq(&TokenType::RightParen))
-                        .ok_or(ParserError::Missing)?;
+                        .ok_or(ParserError::MissingRightParentesis)?;
 
                     Ok(Expr::grouping(expr))
                 }
@@ -106,17 +112,65 @@ impl<'a> ParserIter<'a> {
                 _ => Ok(Expr::literal(token.into())),
             };
         }
-        Err(ParserError::Missing)
+        Err(ParserError::MissingPrimaryValue)
     }
 
-    /// unary -> ( "!" | "-" ) unary | primary;
+    /// call -> primary ( "(" arguments? ")" )* ;
+    fn call(&mut self) -> ParserExprResult<'a> {
+        let mut expr = self.primary()?;
+        loop {
+            if self
+                .inner
+                .next_if(|t| t.kind().eq(&TokenType::LeftParen))
+                .is_some()
+            {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr<'a>) -> ParserExprResult<'a> {
+        let mut arguments = Vec::with_capacity(255);
+
+        if self
+            .inner
+            .peek()
+            .is_some_and(|t| t.kind().eq(&TokenType::RightParen).not())
+        {
+            loop {
+                if arguments.len().ge(&255) {
+                    return Err(ParserError::TooManyArguments);
+                }
+                arguments.push(self.expression()?);
+                if self
+                    .inner
+                    .next_if(|t| t.kind().eq(&TokenType::Comma))
+                    .is_none()
+                {
+                    break;
+                }
+            }
+        }
+
+        let paren = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::RightParen))
+            .ok_or(ParserError::MissingRightParentesis)?;
+
+        Ok(Expr::call(callee, paren, arguments))
+    }
+
+    /// unary -> ( "!" | "-" ) unary | call;
     fn unary(&mut self) -> ParserExprResult<'a> {
         match self
             .inner
             .next_if(|t| matches!(t.kind(), TokenType::Bang | TokenType::Minus))
         {
             Some(token) => Ok(Expr::unary(token.kind().into(), self.unary()?)),
-            None => self.primary(),
+            None => self.call(),
         }
     }
 
@@ -174,7 +228,7 @@ impl<'a> ParserIter<'a> {
     }
 
     fn synchronize(&mut self) {
-        while let Some(token) = self.inner.next() {
+        for token in self.inner.by_ref() {
             if matches!(
                 token.kind(),
                 TokenType::Eof
@@ -217,6 +271,11 @@ impl<'a> ParserIter<'a> {
 
     /// block -> "{" declaration* "}" ;
     fn block(&mut self) -> ParserResult<'a> {
+        let block = self.get_stmts_in_block()?;
+        Ok(Stmt::Block(block))
+    }
+
+    fn get_stmts_in_block(&mut self) -> Result<Vec<Stmt<'a>>, ParserError> {
         let capacity = self.inner.size_hint();
         let mut block = Vec::with_capacity(capacity.1.unwrap_or(capacity.0));
 
@@ -231,14 +290,83 @@ impl<'a> ParserIter<'a> {
         self.inner
             .next_if(|t| t.kind().eq(&TokenType::RightBrace))
             .ok_or(ParserError::MissingBrace)?;
-        Ok(Stmt::Block(block))
+        Ok(block)
     }
 
+    /// declaration -> funDecl | varDecl | statement;
     fn declaration(&mut self) -> ParserResult<'a> {
-        match self.inner.next_if(|t| t.kind().eq(&TokenType::Var)) {
-            Some(_) => self.variable_declaration(),
-            None => self.statement(),
+        if let Some(token) = self
+            .inner
+            .next_if(|t| matches!(t.kind(), TokenType::Var | TokenType::Fun))
+        {
+            match token.kind() {
+                TokenType::Var => self.variable_declaration(),
+                TokenType::Fun => self.function_declaration(),
+                _ => unreachable!(),
+            }
+        } else {
+            self.statement()
         }
+    }
+
+    /// funDecl -> "fun" function;
+    fn function_declaration(&mut self) -> ParserResult<'a> {
+        self.function()
+    }
+
+    /// function -> IDENTIFIER "(" parameters? ")" block ;
+    fn function(&mut self) -> ParserResult<'a> {
+        let token = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::Identifier))
+            .ok_or(ParserError::MissingIdentifier)?;
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::LeftParen))
+            .ok_or(ParserError::MissingLeftParentesis)?;
+        let params = self.parameters()?;
+
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::RightParen))
+            .ok_or(ParserError::MissingRightParentesis)?;
+
+        let _ = self
+            .inner
+            .next_if(|t| t.kind().eq(&TokenType::LeftBrace))
+            .ok_or(ParserError::MissingLeftBrace)?;
+
+        let block = self.get_stmts_in_block()?;
+        Ok(Stmt::Function(token, params, block))
+    }
+
+    /// parameters -> IDENTIFIER ( "," IDENTIFIER )* ;
+    fn parameters(&mut self) -> Result<Vec<Token<'a>>, ParserError> {
+        let mut params = Vec::with_capacity(255);
+        if self
+            .inner
+            .peek()
+            .is_some_and(|t| t.kind().eq(&TokenType::RightParen).not())
+        {
+            loop {
+                if params.len().ge(&255) {
+                    return Err(ParserError::TooManyArguments);
+                }
+                params.push(
+                    self.inner
+                        .next_if(|t| t.kind().eq(&TokenType::Identifier))
+                        .ok_or(ParserError::MissingIdentifier)?,
+                );
+                if self
+                    .inner
+                    .next_if(|t| t.kind().eq(&TokenType::Comma))
+                    .is_none()
+                {
+                    break;
+                }
+            }
+        }
+        Ok(params)
     }
 
     /// statement -> exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
@@ -270,14 +398,14 @@ impl<'a> ParserIter<'a> {
         let _ = self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::LeftParen))
-            .ok_or(ParserError::Missing)?;
+            .ok_or(ParserError::MissingLeftParentesis)?;
 
-        let init  = if self
+        let init = if self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::Semicolon))
             .is_some()
         {
-             None
+            None
         } else if self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::Var))
@@ -285,7 +413,7 @@ impl<'a> ParserIter<'a> {
         {
             Some(self.variable_declaration()?)
         } else {
-             Some(self.expression_statement()?)
+            Some(self.expression_statement()?)
         };
 
         let mut condition = None;
@@ -300,7 +428,7 @@ impl<'a> ParserIter<'a> {
         let _ = self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::Semicolon))
-            .ok_or(ParserError::Missing)?;
+            .ok_or(ParserError::MissingSemicolon)?;
 
         let mut increment = None;
         if self
@@ -314,7 +442,7 @@ impl<'a> ParserIter<'a> {
         let _ = self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::RightParen))
-            .ok_or(ParserError::Missing)?;
+            .ok_or(ParserError::MissingRightParentesis)?;
 
         let mut body = self.statement()?;
 
@@ -331,32 +459,31 @@ impl<'a> ParserIter<'a> {
 
         Ok(body)
     }
-    /// whileStmt -> "while" "(" expression ")" statement ;
-    fn while_statement(&mut self) -> ParserResult<'a> {
+
+    /// Used for: "(" expression ")"
+    fn get_expression_in_parentesis(&mut self) -> ParserExprResult<'a> {
         let _ = self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::LeftParen))
-            .ok_or(ParserError::Missing)?;
+            .ok_or(ParserError::MissingLeftParentesis)?;
         let condition = self.expression()?;
         let _ = self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::RightParen))
-            .ok_or(ParserError::Missing)?;
+            .ok_or(ParserError::MissingRightParentesis)?;
+        Ok(condition)
+    }
+
+    /// whileStmt -> "while" "(" expression ")" statement ;
+    fn while_statement(&mut self) -> ParserResult<'a> {
+        let condition = self.get_expression_in_parentesis()?;
         let body = self.statement()?;
         Ok(Stmt::while_statement(condition, body))
     }
 
     /// ifStmt -> "if" "(" expression ")" statement ("else" statement )? ;
     fn if_statement(&mut self) -> ParserResult<'a> {
-        let _ = self
-            .inner
-            .next_if(|t| t.kind().eq(&TokenType::LeftParen))
-            .ok_or(ParserError::Missing)?;
-        let condition = self.expression()?;
-        let _ = self
-            .inner
-            .next_if(|t| t.kind().eq(&TokenType::RightParen))
-            .ok_or(ParserError::Missing)?;
+        let condition = self.get_expression_in_parentesis()?;
 
         let then = self.statement()?;
         let else_branch = self
@@ -368,11 +495,12 @@ impl<'a> ParserIter<'a> {
         Ok(Stmt::if_statement(condition, then, else_branch))
     }
 
+    /// varDecl -> var IDENTIFIER ( "=" expression )? ";" ;
     fn variable_declaration(&mut self) -> ParserResult<'a> {
         let token = self
             .inner
             .next_if(|t| t.kind().eq(&TokenType::Identifier))
-            .ok_or(ParserError::Missing)?;
+            .ok_or(ParserError::MissingIdentifier)?;
         let mut expr = None;
         if self
             .inner
