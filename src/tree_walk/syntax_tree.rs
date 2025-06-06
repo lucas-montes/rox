@@ -3,7 +3,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::{
+use super::{
     Interpreter,
     interpreter::InterpreterResult,
     tokens::{Token, TokenLexem, TokenType},

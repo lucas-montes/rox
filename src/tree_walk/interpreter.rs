@@ -3,7 +3,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::{
+use super::{
     environment::Environment,
     function::Function,
     syntax_tree::{BinaryOperator, Callable, Expr, Literal, LogicalOperator, Stmt, UnaryOperator},

@@ -1,7 +1,7 @@
-use super::{config, helper};
+use crate::benchmarks::{config, helper};
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
-use yasl::{Parser, Scanner};
+use yasl::tree_walk::{Parser, Scanner};
 
 fn bench(c: &mut Criterion) {
     let mut benchmark = c.benchmark_group("Parser");

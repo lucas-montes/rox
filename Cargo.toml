@@ -8,5 +8,5 @@ criterion = { version = "0.5.1", features = ["html_reports", "plotters"] }
 pprof = { version = "0.13.0", features = ["flamegraph", "criterion"] }
 
 [[bench]]
-name = "bench_main"
+name = "bench_tree_walk"
 harness = false

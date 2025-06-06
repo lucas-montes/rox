@@ -1,6 +1,6 @@
 use std::{fmt::Display, iter::Peekable, ops::Not, str::CharIndices};
 
-use crate::tokens::{Token, TokenType};
+use super::tokens::{Token, TokenType};
 
 #[derive(Debug)]
 pub enum ScanError {

@@ -1,9 +1,8 @@
 mod helper;
-pub mod interpreter;
-pub mod parse;
-pub mod scan;
+pub mod tree_walk;
 
-pub mod config {
+
+mod config {
     use criterion::{BenchmarkGroup, Criterion, measurement::WallTime};
     #[cfg(not(target_os = "windows"))]
     use pprof::criterion::{Output, PProfProfiler};

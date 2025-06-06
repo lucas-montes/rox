@@ -1,7 +1,7 @@
-use super::{config, helper};
+use crate::benchmarks::{config, helper};
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
-use yasl::{Interpreter, Parser, Scanner};
+use yasl::tree_walk::{Interpreter, Parser, Scanner};
 
 fn interpret(input: &str) {
     let mut inter = Interpreter::default();

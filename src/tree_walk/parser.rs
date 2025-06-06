@@ -1,6 +1,6 @@
 use std::ops::Not;
 
-use crate::{
+use super::{
     syntax_tree::{Expr, Literal, Stmt},
     tokens::{Token, TokenLexem, TokenType},
 };
