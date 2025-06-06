@@ -1,9 +1,9 @@
-use std::{fmt::Display, iter::Peekable, str::CharIndices};
+use std::{fmt::Display, iter::Peekable, ops::Not, str::CharIndices};
 
 use crate::tokens::{Token, TokenType};
 
 #[derive(Debug)]
-enum ScanError {
+pub enum ScanError {
     UnexpectedCharacter(u64),
     TokenMissing(u64),
 }
@@ -24,14 +24,14 @@ impl Display for ScanError {
 type ScanResult<T> = Result<T, ScanError>;
 
 #[derive(Default, Debug)]
-pub struct Scanner<'a> {
-    source: &'a str,
-    tokens: Vec<Token<'a>>,
+pub struct Scanner<'sourcecode> {
+    source: &'sourcecode str,
+    tokens: Vec<Token<'sourcecode>>,
     errors: Vec<ScanError>,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl<'sourcecode> Scanner<'sourcecode> {
+    pub fn new(source: &'sourcecode str) -> Self {
         Self {
             source,
             ..Default::default()
@@ -47,20 +47,23 @@ impl<'a> Scanner<'a> {
         self
     }
 
-    pub fn tokens(self) -> Vec<Token<'a>> {
+    pub fn tokens(self) -> Vec<Token<'sourcecode>> {
         self.tokens
+    }
+    pub fn errors(&self) -> Option<&[ScanError]> {
+        self.errors.is_empty().not().then_some(&self.errors)
     }
 }
 
-struct ScanIter<'a> {
+struct ScanIter<'sourcecode> {
     line: u64,
-    source: &'a str,
-    inner: Peekable<CharIndices<'a>>,
+    source: &'sourcecode str,
+    inner: Peekable<CharIndices<'sourcecode>>,
     eof_returned: bool,
 }
 
-impl<'a> ScanIter<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl<'sourcecode> ScanIter<'sourcecode> {
+    pub fn new(source: &'sourcecode str) -> Self {
         Self {
             line: 1,
             source,
@@ -70,8 +73,8 @@ impl<'a> ScanIter<'a> {
     }
 }
 
-impl<'a> Iterator for ScanIter<'a> {
-    type Item = ScanResult<Token<'a>>;
+impl<'sourcecode> Iterator for ScanIter<'sourcecode> {
+    type Item = ScanResult<Token<'sourcecode>>;
     fn next(&mut self) -> Option<Self::Item> {
         //TODO: instead of using the source to get the values I could use the encode_utf8 method
         let Some((current_pos, current_char)) = self.inner.next() else {

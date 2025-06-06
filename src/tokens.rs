@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
@@ -45,6 +45,21 @@ pub enum TokenType {
     Eof,
 }
 
+#[derive(Debug, PartialEq, Clone, Eq, Hash)]
+pub struct TokenLexem(Rc<str>);
+
+impl Display for TokenLexem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<&str> for TokenLexem {
+    fn from(value: &str) -> Self {
+        Self(Rc::from(value))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Token<'a> {
     kind: TokenType,
@@ -69,7 +84,7 @@ impl<'a> Token<'a> {
             line,
         }
     }
-    pub fn value(&self) -> &'a str {
+    pub fn value(&self) -> &str {
         &self.lexem
     }
     pub fn kind(&self) -> &TokenType {
