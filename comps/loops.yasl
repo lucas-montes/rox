@@ -1,0 +1,39 @@
+fun isEven(n) {
+    return n - (n / 2) * 2 == 0;
+}
+
+fun collatzLength(n) {
+    var len = 1;
+    while (n != 1) {
+        if (isEven(n)) {
+            n = n / 2;
+        } else {
+            n = 3 * n + 1;
+        }
+        len = len + 1;
+    }
+    return len;
+}
+
+var i = 1;
+var maxLen = 0;
+var maxNum = 1;
+var start = clock();
+var limit = 10000;
+while (i < limit) {
+    var len = collatzLength(i);
+    if (len > maxLen) {
+        maxLen = len;
+        maxNum = i;
+    }
+    i = i + 1;
+}
+print clock() - start;
+
+print "Longest Collatz sequence under ";
+print limit;
+print "is for number:";
+print maxNum;
+print "Length:";
+print maxLen;
+
