@@ -1,22 +1,7 @@
 use std::io::{self, Write};
 use std::{fmt::Display, path::PathBuf};
 
-use environment::Environment;
-use interpreter::Interpreter;
-use parser::Parser;
-use scanner::Scanner;
-
-mod environment;
-mod interpreter;
-mod parser;
-mod scanner;
-mod syntax_tree;
-mod tokens;
-
-struct ErrorReport {
-    line: u64,
-    msg: String,
-}
+use yasl::{Interpreter, Parser, Scanner};
 
 enum Command {
     Exit,
@@ -43,10 +28,18 @@ impl Command {
             }
             Self::Run(v) => {
                 let scan = Scanner::new(&v).scan();
+                if let Some(scan_errors) = scan.errors() {
+                    eprintln!("error scanning {:?}", &scan_errors);
+                    return;
+                };
                 let parser = Parser::new(scan.tokens());
+                if let Some(parse_errors) = parser.errors() {
+                    eprintln!("error parsing {:?}", &parse_errors);
+                    return;
+                };
                 let stmts = parser.results();
                 for stmt in stmts {
-                    if let Err(err) = inter.evaluate_statement(&stmt) {
+                    if let Err(err) = inter.evaluate(stmt) {
                         eprintln!("error interpreting {:?}", &err);
                     };
                 }
@@ -76,12 +69,50 @@ fn interactive() {
     }
 }
 
+fn read_and_concatenate_files(paths: &[PathBuf]) -> String {
+    let mut content = String::new();
+
+    for path in paths {
+        match std::fs::read_to_string(path) {
+            Ok(file_content) => {
+                content.push_str(&file_content);
+                // Add a newline between files if the file doesn't end with one
+                if !file_content.ends_with('\n') {
+                    content.push('\n');
+                }
+            }
+            Err(e) => {
+                panic!("Error reading file '{}': {}", path.display(), e);
+            }
+        }
+    }
+
+    content
+}
+
 fn main() {
     let paths: Vec<PathBuf> = std::env::args().skip(1).map(PathBuf::from).collect();
 
     if paths.is_empty() {
         interactive();
     } else {
-        println!("{:?}", paths);
+        let input = read_and_concatenate_files(&paths);
+        let mut inter = Interpreter::default();
+        let scan = Scanner::new(&input).scan();
+        if let Some(scan_errors) = scan.errors() {
+            eprintln!("error scanning {:?}", &scan_errors);
+            return;
+        };
+        let parser = Parser::new(scan.tokens());
+        if let Some(parse_errors) = parser.errors() {
+            eprintln!("error parsing {:?}", &parse_errors);
+            return;
+        };
+        let stmts = parser.results();
+        for stmt in stmts {
+            if let Err(err) = inter.evaluate(stmt) {
+                eprintln!("error interpreting {:?}", &err);
+            };
+        }
     }
 }
