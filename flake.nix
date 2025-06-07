@@ -1,5 +1,5 @@
 {
-  description = "Rox";
+  description = "Yasl";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
@@ -30,6 +30,31 @@
             pkgs.pkg-config
             rust-bin-custom
           ];
+        };
+
+        packages.clox = pkgs.stdenv.mkDerivation {
+          pname = "clox";
+          version = "0.1";
+          src = ./clox;
+          buildInputs = [pkgs.gcc];
+
+          buildPhase = ''
+            cSources=$(find . -name '*.c' -print);
+            echo "C source files found:"
+            echo $cSources
+            $CC $cSources -o cloxexe
+          '';
+
+          installPhase = ''
+            mkdir -p $out/bin
+            cp cloxexe $out/bin/
+          '';
+
+          meta = with pkgs.lib; {
+            description = "C project clox";
+            license = licenses.mit;
+            maintainers = with maintainers; [];
+          };
         };
       }
     );
