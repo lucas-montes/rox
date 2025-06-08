@@ -42,12 +42,12 @@
             cSources=$(find . -name '*.c' -print);
             echo "C source files found:"
             echo $cSources
-            $CC $cSources -o cloxexe
+            $CC $cSources -o clox
           '';
 
           installPhase = ''
             mkdir -p $out/bin
-            cp cloxexe $out/bin/
+            cp clox $out/bin/
           '';
 
           meta = with pkgs.lib; {
