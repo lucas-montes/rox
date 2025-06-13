@@ -20,7 +20,7 @@ void writeValueArray(ValueArray *array, Value value) {
     size_t oldCapacity = array->capacity;
     array->capacity = GROW_CAPACITY(oldCapacity);
     array->values =
-        GROW_ARRAY(uint8_t, array->values, oldCapacity, array->capacity);
+        GROW_ARRAY(Value, array->values, oldCapacity, array->capacity);
   }
   array->values[array->count] = value;
   array->count++;

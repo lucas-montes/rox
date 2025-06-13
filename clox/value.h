@@ -9,7 +9,7 @@ typedef double Value;
 typedef struct {
   size_t count;  // points to the next location in the array
   size_t capacity;
-  uint8_t *values;
+  Value *values;
 } ValueArray;
 
 void printValue(Value value);
