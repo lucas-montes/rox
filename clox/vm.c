@@ -6,10 +6,8 @@
 
 static void resetStack(VM *vm) { vm->stackTop = vm->stack; }
 
-VM initVM() {
-  VM vm;
-  resetStack(&vm);
-  return vm;
+void initVM(VM *vm) {
+  resetStack(vm);
 }
 
 void pushVM(VM *vm, Value value) {
@@ -47,18 +45,23 @@ static InterpretResult run(VM *vm) {
     switch (instruction = READ_BYTE()) {
     case OP_RETURN: {
       Value popedValue = popVM(vm);
-      printf("return called \n");
       printValue(popedValue);
       printf("\n");
       return INTERPRET_OK;
     }
     case OP_CONSTANT: {
       Value constant = READ_CONSTANT();
+      printf("const \n");
+      printValue(constant);
+      printf("\n");
       pushVM(vm, constant);
       break;
     }
     case OP_NEGATE: {
       Value popedValue = popVM(vm);
+      printf("negate \n");
+      printValue(popedValue);
+      printf("\n");
       pushVM(vm, -popedValue);
       break;
     }

@@ -19,7 +19,7 @@ typedef struct {
   Value *stackTop; // place where the next value will go
 } VM;
 
-VM initVM();
+void initVM(VM *vm);
 void freeVM(VM *vm);
 void pushVM(VM *vm, Value value);
 Value popVM(VM *vm);

@@ -11,7 +11,7 @@ void initChunk(Chunk *chunk) {
   initValueArray(&chunk->constants);
 }
 
-int addConstant(Chunk *chunk, Value value) {
+size_t addConstant(Chunk *chunk, Value value) {
   writeValueArray(&chunk->constants, value);
   return chunk->constants.count - 1;
 }
