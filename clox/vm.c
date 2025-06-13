@@ -6,9 +6,7 @@
 
 static void resetStack(VM *vm) { vm->stackTop = vm->stack; }
 
-void initVM(VM *vm) {
-  resetStack(vm);
-}
+void initVM(VM *vm) { resetStack(vm); }
 
 void pushVM(VM *vm, Value value) {
   // NOTE: ponter magic. The stacktop points to the location in the array, so
@@ -27,6 +25,12 @@ Value popVM(VM *vm) {
 static InterpretResult run(VM *vm) {
 #define READ_BYTE() (*vm->ip++)
 #define READ_CONSTANT() (vm->chunk->constants.values[READ_BYTE()])
+#define BINARY_OP(op)                                                          \
+  do {                                                                         \
+    double b = popVM(vm);                                                      \
+    double a = popVM(vm);                                                      \
+    pushVM(vm, a op b);                                                        \
+  } while (false)
 
   for (;;) {
 
@@ -43,6 +47,18 @@ static InterpretResult run(VM *vm) {
 
     uint8_t instruction;
     switch (instruction = READ_BYTE()) {
+    case OP_ADD:
+      BINARY_OP(+);
+      break;
+    case OP_MULTIPLY:
+      BINARY_OP(*);
+      break;
+    case OP_SUBTRACT:
+      BINARY_OP(-);
+      break;
+    case OP_DIVIDE:
+      BINARY_OP(/);
+      break;
     case OP_RETURN: {
       Value popedValue = popVM(vm);
       printValue(popedValue);
@@ -69,6 +85,7 @@ static InterpretResult run(VM *vm) {
   }
 #undef READ_BYTE
 #undef READ_CONSTANT
+#undef BINARY_OP
 }
 
 InterpretResult interpret(VM *vm, Chunk *chunk) {
