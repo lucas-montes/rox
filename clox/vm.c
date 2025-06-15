@@ -90,7 +90,8 @@ static InterpretResult run(VM *vm) {
 }
 
 InterpretResult interpret(VM* vm, const char *source) {
-  compile(source);
+  Scanner scanner; //TODO: maybe remove
+  compile(&scanner, source);
   return INTERPRET_OK;
 }
 
