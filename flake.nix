@@ -39,7 +39,7 @@
           buildInputs = [pkgs.gcc];
 
           buildPhase = ''
-            cSources=$(find . -name '*.c' -print);
+            cSources=$(find . -maxdepth 1 -name '*.c' -print);
             echo "C source files found:"
             echo $cSources
             $CC $cSources -o clox
@@ -53,7 +53,37 @@
           meta = with pkgs.lib; {
             description = "C project clox";
             license = licenses.mit;
-            maintainers = with maintainers; [];
+            maintainers = ["Lucas"];
+          };
+        };
+
+        packages.clox-tests = pkgs.stdenv.mkDerivation {
+          pname = "clox-tests";
+          version = "0.1";
+          src = ./clox;
+
+          buildInputs = [pkgs.gcc];
+
+          buildPhase = ''
+            testSources=$(find tests -name '*.c')
+            srcSources=$(find . -maxdepth 1 -name '*.c' ! -name 'main.c')
+            echo "Compiling tests..."
+            $CC -I. $srcSources $testSources -o test-runner
+          '';
+
+          installPhase = ''
+            mkdir -p $out/bin
+            cp test-runner $out/bin/
+          '';
+
+          doCheck = true;
+          checkPhase = ''
+            ./test-runner
+          '';
+
+          meta = with pkgs.lib; {
+            description = "Clox tests";
+            license = licenses.mit;
           };
         };
       }
